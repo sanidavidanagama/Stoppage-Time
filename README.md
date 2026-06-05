@@ -56,6 +56,23 @@ and are already filled in within the notebook — no per-account setup needed.
 
 4. Run the cells top-to-bottom.
 
+## Using a different LLM provider (optional)
+
+The notebook calls **Anthropic** by default, but every LLM cell also ships
+ready-to-use **Gemini**, **OpenAI**, and **DeepSeek** versions (commented out).
+To switch:
+
+1. Paste your provider key into the optional `*_API_KEY` slots in the **Setup**
+   cell.
+2. Install its SDK from the optional section of
+   [`requirements.txt`](requirements.txt) (`google-genai` for Gemini; `openai`
+   for OpenAI/DeepSeek).
+3. Uncomment that provider's client in the first LLM cell, then in each LLM cell
+   comment out the Anthropic block and uncomment your provider's block.
+
+The `_extract()` / `_mi()` helpers already understand all four response shapes,
+so nothing downstream needs to change.
+
 ## Notes
 
 - The notebook targets **staging** (`https://staging.stair-ai.com`) and World

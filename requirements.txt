@@ -11,3 +11,9 @@ anthropic>=0.40,<1
 
 # To run the notebook itself:
 jupyter>=1.0
+
+# --- Optional: alternative LLM providers -------------------------------------
+# The notebook uses Anthropic by default. Install only the one you plan to use,
+# then follow the "uncomment" instructions in the Setup and LLM cells.
+# google-genai>=1.0     # Google Gemini
+# openai>=1.0           # OpenAI  (also used for DeepSeek via base_url override)
