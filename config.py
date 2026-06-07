@@ -6,15 +6,22 @@ Loads from .env automatically.
 Only two secrets needed: ARENA_KEY and GEMINI_API_KEY.
 """
 
+from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
+    model_config = ConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
     # --- Secrets (from .env) ---
     ARENA_KEY:      str
     GEMINI_API_KEY: str
 
-    # --- Arena endpoints (derived) ---
+    # --- Arena ---
     ARENA: str = "https://staging.stair-ai.com"
 
     @property
@@ -29,7 +36,7 @@ class Settings(BaseSettings):
     def POLYMARKET_CLOB(self) -> str:
         return f"{self.ARENA}/api/v1/data/proxy/polymarket-clob"
 
-    # --- Supabase (public shared key — not a secret) ---
+    # --- Supabase (public shared key) ---
     SUPABASE_URL: str = "https://ezvbmtvrvzageqixvdak.supabase.co"
     SUPABASE_KEY: str = "sb_publishable__m8bOkD05ToFwATpaWST5w_2-3fGS7V"
 
@@ -37,7 +44,7 @@ class Settings(BaseSettings):
     GEMINI_MODEL: str = "gemini-2.0-flash"
 
     # --- Tournament ---
-    SEASON_ID: int = 26618  # WC 2026
+    SEASON_ID: int = 26618
 
     # --- Ledger ---
     LEDGER_SCHEMA_VERSION: str = "0.3"
@@ -63,10 +70,5 @@ class Settings(BaseSettings):
     def H_PUBLIC(self) -> dict:
         return {"apikey": self.SUPABASE_KEY}
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
 
-
-# Single instance — import this everywhere
 settings = Settings()
