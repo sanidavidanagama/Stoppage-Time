@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     SUPABASE_KEY: str = "sb_publishable__m8bOkD05ToFwATpaWST5w_2-3fGS7V"
 
     # --- Gemini ---
-    GEMINI_MODEL: str = "gemini-2.0-flash"
+    GEMINI_MODEL: str = "gemini-2.5-flash"
 
     # --- Tournament ---
     SEASON_ID: int = 26618
