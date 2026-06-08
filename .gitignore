@@ -114,4 +114,8 @@ venv.bak/
 # Jupyter outputs
 *.nbconvert.ipynb
 
+# Chroma DB
+.chroma/
+.chromadb/
+
 # End of file
