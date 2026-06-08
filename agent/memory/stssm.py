@@ -1,5 +1,5 @@
 """
-agent/memory/stm.py
+agent/memory/stssm.py
 
 Short Term Session State Memory (STSSM).
 Holds all state for a single match analysis session.
@@ -120,7 +120,7 @@ class STSSM:
         return "\n".join(lines)
 
     def to_dict(self) -> dict:
-        """Serialize STM to a plain dict for logging."""
+        """Serialize STSSM to a plain dict for logging."""
         return {
             "session_id":    self.session_id,
             "created_at":    self.created_at,
@@ -155,9 +155,9 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def new_session(fixture_name: str = "", kickoff: str = "") -> STM:
+def new_session(fixture_name: str = "", kickoff: str = "") -> STSSM:
     """
-    Create a fresh STM for a new match session.
+    Create a fresh STSSM for a new match session.
     Called by the orchestrator at the start of each run.
     """
     stm = STSSM(fixture_name=fixture_name, kickoff=kickoff)
