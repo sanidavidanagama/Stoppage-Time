@@ -33,10 +33,9 @@ def _base(session_id: str, behavior: str, **fields) -> dict:
         "record_id":      str(uuid.uuid4()),
         "session_id":     session_id,
         "behavior":       behavior,
-        "timestamp":      time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "client_ts_utc":  int(time.time() * 1000),   # milliseconds
         **fields,
     }
-
 
 def observing(
     session_id:   str,
@@ -44,18 +43,13 @@ def observing(
     source:       str,
     upstream_ids: list[str] | None = None,
 ) -> dict:
-    """
-    Record a data observation (API call, DB query).
-
-    Args:
-        session_id:   current session UUID
-        description:  what was fetched e.g. "Fetched fixture 19609127 from Sportmonks"
-        source:       data source e.g. "sportmonks_proxy" | "supabase" | "polymarket"
-        upstream_ids: record_ids this observation depends on
-    """
-    record = _base(session_id, "Observing",
-                   description=description,
-                   source=source)
+    record = _base(
+        session_id, "Observing",
+        trigger_source            = source,
+        trigger_type              = "data_fetch",
+        trigger_description       = description,
+        trigger_payload_summary   = description,
+    )
     if upstream_ids:
         record["upstream_record_id"] = upstream_ids
     return record
@@ -119,26 +113,17 @@ def acting(
     upstream_ids:     list[str] | None = None,
     dry_run:          bool = False,
 ) -> dict:
-    """
-    Record an action taken by the agent.
-
-    Args:
-        session_id:       current session UUID
-        action_type:      "prediction" | "open_order" | "skip"
-        action_summary:   human readable summary
-        parameters:       the parameters used for this action
-        execution_status: "confirmed" | "pending" | "failed" | "skipped"
-        target_system:    system the action was taken on
-        execution_id:     order_id or other external reference
-        upstream_ids:     record_ids this action depends on
-        dry_run:          True if this was a simulation
-    """
+    # ensure fixture_id is always a string
+    safe_params = {
+        k: str(v) if k == "fixture_id" else v
+        for k, v in parameters.items()
+    }
     record = _base(
         session_id, "Acting",
         action_type      = action_type,
         target_system    = target_system,
         action_summary   = action_summary,
-        parameters       = parameters,
+        parameters       = safe_params,
         dry_run          = dry_run,
         execution_status = execution_status,
     )
@@ -148,21 +133,22 @@ def acting(
         record["upstream_record_id"] = upstream_ids
     return record
 
+
 def tool_calling(
-    session_id:   str,
-    tool_name:    str,
-    params:       dict,
+    session_id:    str,
+    tool_name:     str,
+    params:        dict,
     result_summary: str,
-    upstream_ids: list[str] | None = None,
+    success:       bool = True,
+    upstream_ids:  list[str] | None = None,
 ) -> dict:
-    """
-    Record a tool call made by the agent during the ReAct loop.
-    """
     record = _base(
         session_id, "ToolCalling",
-        tool_name      = tool_name,
-        params         = params,
-        result_summary = result_summary,
+        tool_meta      = {"name": tool_name},
+        description    = f"Tool call: {tool_name}",
+        input_payload  = _truncate(params),
+        output_payload = _truncate(result_summary),
+        success        = success,
     )
     if upstream_ids:
         record["upstream_record_id"] = upstream_ids

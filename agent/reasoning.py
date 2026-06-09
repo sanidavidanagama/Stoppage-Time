@@ -128,10 +128,12 @@ def _format_polymarket(stm: STSSM) -> str:
         for outcome in ["home", "draw", "away"]:
             h = history.get(outcome)
             if h:
+                chg_24h = f"{h.get('change_24hr'):+.3f}" if h.get('change_24hr') is not None else "N/A"
+                chg_1wk = f"{h.get('change_1wk'):+.3f}"  if h.get('change_1wk')  is not None else "N/A"
                 lines.append(
                     f"  {outcome}: last={h.get('last_price')}  "
-                    f"24hr_chg={h.get('change_24hr'):+.3f}  "
-                    f"1wk_chg={h.get('change_1wk'):+.3f}  "
+                    f"24hr_chg={chg_24h}  "
+                    f"1wk_chg={chg_1wk}  "
                     f"spread={h.get('spread')}"
                 )
 

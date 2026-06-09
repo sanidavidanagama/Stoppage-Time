@@ -1,11 +1,10 @@
 """
 tests/test_ledger.py
 
-Tests for ledger/logger.py and ledger/reader.py
+Tests for ledger/logger.py
 Run with: pytest tests/test_ledger.py -v
 """
 
-import pytest
 from ledger.logger import (
     observing, thinking, acting, submit, _truncate,
     tool_calling, planning, reflecting,
@@ -17,12 +16,13 @@ from ledger.logger import (
 def test_observing_has_required_keys():
     rec = observing("sess-001", "Fetched fixture", "sportmonks_proxy")
     for key in ["schema_version", "record_id", "session_id",
-                "behavior", "timestamp", "description", "source"]:
+                "behavior", "client_ts_utc",
+                "trigger_source", "trigger_description"]:
         assert key in rec
 
 
-def test_observing_behavior_is_observing():
-    rec = observing("sess-001", "test", "test_source")
+def test_observing_behavior():
+    rec = observing("s1", "test", "src")
     assert rec["behavior"] == "Observing"
 
 
@@ -32,34 +32,33 @@ def test_observing_unique_record_ids():
     assert r1["record_id"] != r2["record_id"]
 
 
+def test_observing_client_ts_utc_is_int():
+    rec = observing("s1", "test", "src")
+    assert isinstance(rec["client_ts_utc"], int)
+
+
 def test_observing_with_upstream():
-    rec = observing("s1", "test", "src", upstream_ids=["abc", "def"])
-    assert rec["upstream_record_id"] == ["abc", "def"]
+    rec = observing("s1", "test", "src", upstream_ids=["abc"])
+    assert rec["upstream_record_id"] == ["abc"]
 
 
 # --- thinking ----------------------------------------------------------------
 
 def test_thinking_has_required_keys():
-    rec = thinking(
-        session_id     = "s1",
-        prompt         = "test prompt",
-        output_payload = {"result": "ok"},
-        model_name     = "gemini-2.5-flash",
-        tokens_in      = 100,
-        tokens_out     = 50,
-    )
+    rec = thinking("s1", "prompt", {"result": "ok"},
+                   "gemini-2.5-flash", 100, 50)
     for key in ["schema_version", "record_id", "session_id",
-                "behavior", "timestamp", "model_invocation",
-                "prompt", "output_payload"]:
+                "behavior", "client_ts_utc",
+                "model_invocation", "prompt", "output_payload"]:
         assert key in rec
 
 
-def test_thinking_behavior_is_thinking():
+def test_thinking_behavior():
     rec = thinking("s1", "prompt", {}, "gemini-2.5-flash", 100, 50)
     assert rec["behavior"] == "Thinking"
 
 
-def test_thinking_model_invocation_shape():
+def test_thinking_model_invocation():
     rec = thinking("s1", "prompt", {}, "gemini-2.5-flash", 100, 50)
     mi  = rec["model_invocation"]
     assert mi["provider"]   == "gemini"
@@ -70,35 +69,35 @@ def test_thinking_model_invocation_shape():
 
 def test_thinking_with_internal_reasoning():
     rec = thinking("s1", "p", {}, "gemini-2.5-flash", 10, 5,
-                   internal_reasoning="I thought about this...")
+                   internal_reasoning="thought...")
     assert "internal_reasoning" in rec["model_invocation"]
 
 
 def test_thinking_prompt_truncated():
-    long_prompt = "x" * 20000
-    rec = thinking("s1", long_prompt, {}, "gemini-2.5-flash", 10, 5)
+    rec = thinking("s1", "x" * 20000, {}, "gemini-2.5-flash", 10, 5)
     assert len(rec["prompt"]) <= 16000
 
 
 # --- acting ------------------------------------------------------------------
 
 def test_acting_has_required_keys():
-    rec = acting(
-        session_id       = "s1",
-        action_type      = "prediction",
-        action_summary   = "Predict home win",
-        parameters       = {"outcome": "home"},
-        execution_status = "confirmed",
-    )
+    rec = acting("s1", "prediction", "Predict home win",
+                 {"outcome": "home"}, "confirmed")
     for key in ["schema_version", "record_id", "session_id",
-                "behavior", "timestamp", "action_type",
+                "behavior", "client_ts_utc", "action_type",
                 "action_summary", "parameters", "execution_status"]:
         assert key in rec
 
 
-def test_acting_behavior_is_acting():
+def test_acting_behavior():
     rec = acting("s1", "prediction", "test", {}, "confirmed")
     assert rec["behavior"] == "Acting"
+
+
+def test_acting_fixture_id_is_string():
+    rec = acting("s1", "prediction", "test",
+                 {"fixture_id": 19609127, "outcome": "home"}, "confirmed")
+    assert isinstance(rec["parameters"]["fixture_id"], str)
 
 
 def test_acting_with_execution_id():
@@ -110,19 +109,22 @@ def test_acting_with_execution_id():
 # --- tool_calling ------------------------------------------------------------
 
 def test_tool_calling_has_required_keys():
-    rec = tool_calling(
-        "s1", "supabase.get_h2h",
-        {"home": "Mexico", "away": "South Africa"},
-        "No h2h data found",
-    )
+    rec = tool_calling("s1", "supabase.get_h2h",
+                       {"home": "Mexico"}, "No data found")
     for key in ["schema_version", "record_id", "session_id",
-                "behavior", "timestamp", "tool_name", "params"]:
+                "behavior", "client_ts_utc",
+                "tool_meta", "input_payload", "output_payload"]:
         assert key in rec
 
 
 def test_tool_calling_behavior():
     rec = tool_calling("s1", "test_tool", {}, "result")
     assert rec["behavior"] == "ToolCalling"
+
+
+def test_tool_calling_tool_meta():
+    rec = tool_calling("s1", "supabase.get_h2h", {}, "result")
+    assert rec["tool_meta"]["name"] == "supabase.get_h2h"
 
 
 def test_tool_calling_with_upstream():
@@ -134,10 +136,9 @@ def test_tool_calling_with_upstream():
 # --- planning ----------------------------------------------------------------
 
 def test_planning_has_required_keys():
-    rec = planning("s1", "Deciding fetch order",
-                   "Fetch Sportmonks first, then Polymarket")
+    rec = planning("s1", "Deciding fetch order", "Fetch Sportmonks first")
     for key in ["schema_version", "record_id", "session_id",
-                "behavior", "timestamp", "description", "plan"]:
+                "behavior", "client_ts_utc", "description", "plan"]:
         assert key in rec
 
 
@@ -149,10 +150,9 @@ def test_planning_behavior():
 # --- reflecting --------------------------------------------------------------
 
 def test_reflecting_has_required_keys():
-    rec = reflecting("s1", "Post-match review",
-                     "Bet lost — market was right, ML model was wrong")
+    rec = reflecting("s1", "Post-match", "Bet lost")
     for key in ["schema_version", "record_id", "session_id",
-                "behavior", "timestamp", "description", "reflection"]:
+                "behavior", "client_ts_utc", "description", "reflection"]:
         assert key in rec
 
 
@@ -168,8 +168,7 @@ def test_truncate_short_string():
 
 
 def test_truncate_long_string():
-    long = "x" * 40000
-    result = _truncate(long)
+    result = _truncate("x" * 40000)
     assert len(result) < 40000
     assert "truncated" in result
 

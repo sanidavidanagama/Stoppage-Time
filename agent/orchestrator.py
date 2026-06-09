@@ -315,11 +315,10 @@ def run(home: str, away: str) -> dict:
                         f"${bet_decision['size_usdc']:.2f} "
                         f"@ {bet_decision['limit_price']}"
                     ),
-                    parameters       = {
-                        "fixture_id":  str(identity_map["fixture_id"]),
-                        "team_code":   bet_decision["team_code"],
-                        "usd_size":    str(bet_decision["size_usdc"]),
-                        "limit_price": bet_decision["limit_price"],
+                    parameters = {
+                        "fixture_id":  str(identity_map["fixture_id"]),   # string not int
+                        "outcome":     final_decision.get("outcome"),
+                        "probability": final_decision.get("probability"),
                     },
                     execution_status = order_result.get("status", "pending"),
                     execution_id     = order_result.get("order_id"),

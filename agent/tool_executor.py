@@ -124,10 +124,12 @@ def _sportmonks_get_fixture(params: dict, stm: STSSM) -> str:
     sm_id = _get_sportmonks_identities(fixture["fixture_id"])
     mini_im = {
         "fixture_id": fixture["fixture_id"],
+        "round":      fixture.get("round", ""),
+        "stage":      fixture.get("stage", ""),
         "home": {**sm_id["home"], "has_polymarket": False,
-                 "has_supabase": False, "has_sb_priors": False},
+                "has_supabase": False, "has_sb_priors": False},
         "away": {**sm_id["away"], "has_polymarket": False,
-                 "has_supabase": False, "has_sb_priors": False},
+                "has_supabase": False, "has_sb_priors": False},
     }
     data = get_all(mini_im)
 
