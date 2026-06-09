@@ -23,6 +23,7 @@ class Settings(BaseSettings):
 
     # --- Arena ---
     ARENA: str = "https://staging.stair-ai.com"
+    AGENT_ID: str = "54555fe7-4adc-4bcd-ad1f-1307a388d5ef"
 
     @property
     def SPORTMONKS_PROXY(self) -> str:
@@ -50,7 +51,7 @@ class Settings(BaseSettings):
     LEDGER_SCHEMA_VERSION: str = "0.3"
 
     # --- Agent behaviour ---
-    MAX_TOOL_ROUNDS: int   = 5
+    MAX_TOOL_ROUNDS: int   = 3
     MAX_BET_SIZE:    float = 5.0
     MIN_EDGE_PP:     float = 5.0
 

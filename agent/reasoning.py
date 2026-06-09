@@ -318,6 +318,9 @@ def call(stm: STSSM) -> dict:
 
         raw      = _extract_text(response)
         thinking = _extract_thinking(response)
+
+        print(f"    [DEBUG] Raw response preview: {raw[:200]}")
+
         result = _parse_response(raw)
 
         if result is None:

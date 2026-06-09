@@ -6,14 +6,15 @@ Ties together all modules into one complete agent run.
 
 Flow:
     1. Create STSSM
-    2. Resolve identities
-    3. Fetch initial data (Sportmonks + Polymarket + Supabase + News)
-    4. ReAct loop (reasoning -> tool calls -> reasoning...)
-    5. If should_bet -> call bet_manager
-    6. Place order
-    7. Log everything to Arena ledger
-    8. Save bet to LTM
-    9. Clear STSSM
+    2. Planning record
+    3. Resolve identities
+    4. Fetch initial data (Sportmonks + Polymarket + Supabase + News)
+    5. ReAct loop (reasoning -> tool calls -> reasoning...)
+    6. If should_bet -> call bet_manager
+    7. Place order
+    8. Reflecting record
+    9. Log everything to Arena ledger
+    10. Save bet to LTM
 """
 
 from __future__ import annotations
@@ -31,16 +32,14 @@ from data.news.embedder import embed_articles
 from data.news.store    import store_articles, clear_collection
 
 from agent.memory.stssm  import new_session, STSSM
-from agent.memory.ltm    import (
-    save_bet, get_bankroll_summary, get_ltm_context
-)
+from agent.memory.ltm    import save_bet, get_bankroll_summary
 from agent.reasoning     import call as reasoning_call
 from agent.bet_manager   import decide as bet_manager_decide
 from agent.tool_executor import execute as tool_execute
 
 from ledger.logger import (
     observing, thinking, acting, tool_calling,
-    planning, reflecting, submit,
+    planning, reflecting, other, submit,
 )
 
 
@@ -49,63 +48,58 @@ from ledger.logger import (
 def run(home: str, away: str) -> dict:
     """
     Run one complete agent cycle for a fixture.
-
-    Args:
-        home: home team name e.g. "Mexico"
-        away: away team name e.g. "South Africa"
-
-    Returns:
-        Summary dict with session_id, decision, and outcome.
     """
     stm     = new_session()
-    records = []   # ledger records accumulated throughout
+    records = []
 
     print(f"\n{'='*55}")
     print(f"Stoppage Time — {home} vs {away}")
     print(f"{'='*55}\n")
 
     try:
-        # ── Step 1: Planning ─────────────────────────────────────────────────
-        stm.status = "fetching"
-        rec_plan = planning(
-            stm.session_id,
-            "Session start",
-            f"Analyse {home} vs {away}. "
-            f"Fetch identity map, then Sportmonks, Polymarket, Supabase, News.",
-        )
-        records.append(rec_plan)
+        # ── Step 1: Identity resolution ──────────────────────────────────────
         print("Step 1: Resolving identities...")
-
-        # ── Step 2: Identity resolution ──────────────────────────────────────
-        identity_map = resolve_identity(home, away)
+        identity_map     = resolve_identity(home, away)
         stm.identity_map = identity_map
+        stm.session_id   = f"prematch:{identity_map['fixture_id']}"
         stm.fixture_name = identity_map["fixture_name"]
         stm.kickoff      = identity_map["kickoff"]
 
-        rec_identity = observing(
-            stm.session_id,
-            f"Resolved identity map for {identity_map['fixture_name']}",
-            "arena_mapping",
-            upstream_ids=[rec_plan["record_id"]],
-        )
-        records.append(rec_identity)
+        fixture_id_str = str(identity_map["fixture_id"])
+
         print(f"  Fixture  : {identity_map['fixture_name']}")
         print(f"  Kickoff  : {identity_map['kickoff']}")
-        print(f"  MEX ID   : sm={identity_map['home']['sm_team_id']}  "
-              f"sb={identity_map['home']['sb_priors_id']}")
+
+        # ── Step 2: Planning record ───────────────────────────────────────────
+        rec_plan = planning(
+            session_id = stm.session_id,
+            goal       = f"Analyse {home} vs {away} and decide whether to place a pre-match bet",
+            steps      = [
+                "Fetch Sportmonks predictions and bookmaker odds",
+                "Fetch Polymarket live prices and liquidity",
+                "Fetch Supabase historical priors and checkpoint stats",
+                "Fetch recent news articles via RSS",
+                "Run Gemini reasoning over all data",
+                "Call bet manager if agent decides to bet",
+                "Place order on Polymarket if bet is confirmed",
+                "Reflect on decision and update long term memory",
+            ],
+        )
+        records.append(rec_plan)
 
         # ── Step 3: Fetch data ────────────────────────────────────────────────
+        stm.status = "fetching"
         print("\nStep 2: Fetching data...")
 
         # Sportmonks
         stm.sportmonks = sm_get_all(identity_map)
         rec_sm = observing(
             stm.session_id,
-            f"Fetched Sportmonks data: "
-            f"predictions={stm.sportmonks['predictions']['available']}  "
+            f"Fetched Sportmonks data for {identity_map['fixture_name']}: "
+            f"predictions={stm.sportmonks['predictions']['available']} "
             f"odds={stm.sportmonks['odds']['available']}",
             "sportmonks_proxy",
-            upstream_ids=[rec_identity["record_id"]],
+            upstream_ids=[rec_plan["record_id"]],
         )
         records.append(rec_sm)
         print(f"  Sportmonks: predictions={stm.sportmonks['predictions']['available']}  "
@@ -116,10 +110,10 @@ def run(home: str, away: str) -> dict:
         rec_pm = observing(
             stm.session_id,
             f"Fetched Polymarket data: "
-            f"prices={stm.polymarket['live_prices']['available']}  "
+            f"prices={stm.polymarket['live_prices']['available']} "
             f"liquidity=${stm.polymarket['meta'].get('liquidity', 0):,.0f}",
-            "polymarket",
-            upstream_ids=[rec_identity["record_id"]],
+            "polymarket_proxy",
+            upstream_ids=[rec_plan["record_id"]],
         )
         records.append(rec_pm)
         print(f"  Polymarket: prices={stm.polymarket['live_prices']['available']}  "
@@ -130,16 +124,16 @@ def run(home: str, away: str) -> dict:
         rec_sb = observing(
             stm.session_id,
             f"Fetched Supabase data: "
-            f"checkpoint={stm.supabase['checkpoint_stats']['available']}  "
+            f"checkpoint={stm.supabase['checkpoint_stats']['available']} "
             f"priors={stm.supabase['country_style']['available']}",
             "supabase",
-            upstream_ids=[rec_identity["record_id"]],
+            upstream_ids=[rec_plan["record_id"]],
         )
         records.append(rec_sb)
         print(f"  Supabase  : checkpoint={stm.supabase['checkpoint_stats']['available']}  "
               f"priors={stm.supabase['country_style']['available']}")
 
-        # News RAG
+        # News
         articles = fetch_news(home, away)
         if articles:
             embedded = embed_articles(articles)
@@ -148,46 +142,79 @@ def run(home: str, away: str) -> dict:
         stm.news = articles
         rec_news = observing(
             stm.session_id,
-            f"Fetched {len(articles)} news articles via RSS",
+            f"Fetched {len(articles)} news articles via RSS feeds",
             "rss_feeds",
-            upstream_ids=[rec_identity["record_id"]],
+            upstream_ids=[rec_plan["record_id"]],
         )
         records.append(rec_news)
         print(f"  News      : {len(articles)} articles")
+
+        # Weather
+        from data.sportmonks import get_fixture_meta
+        from data.weather    import get_match_weather
+        meta    = get_fixture_meta(identity_map)
+        wx      = get_match_weather(
+            venue_id     = meta.get("venue_id"),
+            kickoff_date = stm.kickoff[:10] if stm.kickoff else None,
+        )
+        rec_wx = other(
+            session_id = stm.session_id,
+            label      = "weather_fetch",
+            data       = {
+                "venue":     wx.get("venue"),
+                "city":      wx.get("city"),
+                "temp_c":    wx.get("temp_c"),
+                "condition": wx.get("condition"),
+                "wind_kph":  wx.get("wind_kph"),
+                "precip_mm": wx.get("precip_mm"),
+                "available": wx.get("available"),
+                "summary":   wx.get("summary"),
+            },
+            upstream_ids=[rec_plan["record_id"]],
+        )
+        records.append(rec_wx)
+        print(f"  Weather   : {wx.get('summary', 'unavailable')}")
 
         # ── Step 4: ReAct loop ────────────────────────────────────────────────
         stm.status = "reasoning"
         print(f"\nStep 3: ReAct loop (max {settings.MAX_TOOL_ROUNDS} rounds)...")
 
         final_decision = None
+        rec_think      = None
 
         for round_num in range(1, settings.MAX_TOOL_ROUNDS + 1):
             stm.current_round = round_num
             print(f"\n  Round {round_num}:")
 
-            # call Gemini
             response = reasoning_call(stm)
             stm.add_gemini_message("assistant", json.dumps(response, default=str))
 
-            # log Thinking record
+            upstream = [r["record_id"] for r in
+                        [rec_sm, rec_pm, rec_sb, rec_news, rec_wx]
+                        if r is not None]
+
+            clean_response = {k: v for k, v in response.items()
+                            if k not in ["_thinking", "_raw"]}
+
             rec_think = thinking(
-                session_id          = stm.session_id,
-                prompt              = f"Round {round_num} reasoning",
-                output_payload      = response,
-                model_name          = settings.GEMINI_MODEL,
-                tokens_in           = None,
-                tokens_out          = None,
-                internal_reasoning  = response.get("_thinking"),
-                upstream_ids        = [rec_sm["record_id"],
-                                       rec_pm["record_id"],
-                                       rec_sb["record_id"]],
+                session_id         = stm.session_id,
+                prompt             = f"Round {round_num} — Analyse {home} vs {away} and decide",
+                output_payload     = clean_response if clean_response else {"type": "error"},
+                model_name         = settings.GEMINI_MODEL,
+                tokens_in          = None,
+                tokens_out         = None,
+                internal_reasoning = (response.get("_thinking") or "")[:1000], 
+                upstream_ids       = upstream,
+                inputs             = [{"input_payload": json.dumps({
+                    "sportmonks": stm.sportmonks.get("predictions", {}).get("consensus"),
+                    "polymarket": stm.polymarket.get("live_prices", {}),
+                }, default=str)[:2000]}],
             )
             records.append(rec_think)
 
             resp_type = response.get("type")
             print(f"    Response type: {resp_type}")
 
-            # ── Final decision ────────────────────────────────────────────
             if resp_type == "final_decision":
                 final_decision = response
                 print(f"    Outcome      : {response.get('outcome')}")
@@ -195,82 +222,92 @@ def run(home: str, away: str) -> dict:
                 print(f"    Confidence   : {response.get('confidence_level')}")
                 break
 
-            # ── Tool request ──────────────────────────────────────────────
             elif resp_type == "tool_request":
                 tool_name = response.get("tool")
                 params    = dict(response.get("params", {}))
                 reason    = response.get("reason", "")
                 params["reason"] = reason
 
-                print(f"    Tool request : {tool_name}({params})")
-                print(f"    Reason       : {reason}")
+                print(f"    Tool request : {tool_name}")
+                print(f"    Reason       : {reason[:80]}")
 
-                # execute the tool
                 tc = tool_execute(tool_name, params, stm, round_num)
                 stm.add_tool_call(tc)
 
-                # log ToolCalling record
-                rec_tc = tool_calling(
-                    session_id    = stm.session_id,
-                    tool_name     = tool_name,
-                    params        = params,
-                    result_summary = tc.result_summary or "",
-                    upstream_ids  = [rec_think["record_id"]],
-                )
+                # use Other for weather/tactics, ToolCalling for data fetches
+                if tool_name in ["weather.get_match_weather", "tactics.analyse"]:
+                    rec_tc = other(
+                        session_id   = stm.session_id,
+                        label        = tool_name.replace(".", "_"),
+                        data         = {
+                            "params":  params,
+                            "result":  (tc.result_summary or "")[:2000],
+                            "success": tc.error is None,
+                        },
+                        upstream_ids = [rec_think["record_id"]],
+                    )
+                else:
+                    rec_tc = tool_calling(
+                        session_id    = stm.session_id,
+                        tool_name     = tool_name,
+                        params        = params,
+                        result_summary = tc.result_summary or "",
+                        success       = tc.error is None,
+                        upstream_ids  = [rec_think["record_id"]],
+                    )
                 records.append(rec_tc)
 
-                print(f"    Result       : {(tc.result_summary or '')[:100]}...")
-
-                # feed result back into STSSM messages
+                print(f"    Result       : {(tc.result_summary or '')[:80]}...")
                 stm.add_gemini_message(
                     "user",
                     f"Tool result for {tool_name}:\n{tc.result_summary}"
                 )
 
-            # ── Error ─────────────────────────────────────────────────────
             elif resp_type == "error":
                 print(f"    ERROR: {response.get('reason')}")
                 break
 
-        # max rounds hit without decision
+        # max rounds fallback
         if final_decision is None:
             final_decision = {
                 "type":             "final_decision",
                 "outcome":          None,
                 "should_bet":       False,
                 "confidence_level": "low",
-                "rationale":        f"Max tool rounds ({settings.MAX_TOOL_ROUNDS}) reached without decision.",
+                "rationale":        f"Max rounds ({settings.MAX_TOOL_ROUNDS}) reached without decision.",
             }
 
-        # log Acting — prediction
+        # ── Step 5: Prediction record ─────────────────────────────────────────
+        _pred_prob = max(0.001, min(0.999, float(final_decision.get("probability") or 0.5)))
         rec_predict = acting(
             session_id       = stm.session_id,
             action_type      = "prediction",
             action_summary   = (
                 f"Predict {final_decision.get('outcome')} "
-                f"@ p={final_decision.get('probability', 0):.2f} "
+                f"@ p={_pred_prob:.2f} "
                 f"for {identity_map['fixture_name']}"
             ),
             parameters       = {
-                "fixture_id": identity_map["fixture_id"],
-                "outcome":    final_decision.get("outcome"),
-                "probability": final_decision.get("probability"),
+                "fixture_id":  fixture_id_str,
+                "outcome":     final_decision.get("outcome"),
+                "probability": _pred_prob,
             },
             execution_status = "confirmed",
-            upstream_ids     = [rec_think["record_id"]],
+            upstream_ids     = [rec_think["record_id"]] if rec_think else [],
         )
-        records.append(rec_predict)
+        if final_decision.get("outcome") in ["home", "away"]:
+            records.append(rec_predict)
         stm.prediction = final_decision
 
-        # ── Step 5: Bet manager ───────────────────────────────────────────────
+        # ── Step 6: Bet manager ───────────────────────────────────────────────
         bet_decision = None
         order_result = None
 
         if final_decision.get("should_bet"):
-            stm.status = "acting"
+            stm.status  = "acting"
             print(f"\nStep 4: Calling bet manager...")
 
-            live_prices = stm.polymarket.get("live_prices", {})
+            live_prices  = stm.polymarket.get("live_prices", {})
             bet_decision = bet_manager_decide(
                 prediction  = final_decision,
                 live_prices = live_prices,
@@ -281,13 +318,18 @@ def run(home: str, away: str) -> dict:
 
             rec_bet_think = thinking(
                 session_id         = stm.session_id,
-                prompt             = "Bet manager sizing decision",
+                prompt             = "Bet manager — decide size and limit price",
                 output_payload     = bet_decision,
                 model_name         = settings.GEMINI_MODEL,
                 tokens_in          = None,
                 tokens_out         = None,
-                internal_reasoning = bet_decision.get("_thinking"),
+                internal_reasoning = (bet_decision.get("_thinking") or "")[:1000],
                 upstream_ids       = [rec_predict["record_id"]],
+                inputs             = [{"input_payload": json.dumps({
+                    "prediction":  final_decision,
+                    "live_prices": live_prices,
+                    "bankroll":    get_bankroll_summary(),
+                }, default=str)}],
             )
             records.append(rec_bet_think)
 
@@ -296,7 +338,7 @@ def run(home: str, away: str) -> dict:
             print(f"  Size              : ${bet_decision.get('size_usdc')}")
             print(f"  Edge              : {bet_decision.get('edge_pp')}pp")
 
-            # ── Step 6: Place order ───────────────────────────────────────
+            # ── Step 7: Place order ───────────────────────────────────────────
             if bet_decision.get("should_place_order"):
                 print(f"\nStep 5: Placing order...")
                 order_result = _place_order(
@@ -311,16 +353,17 @@ def run(home: str, away: str) -> dict:
                     session_id       = stm.session_id,
                     action_type      = "open_order",
                     action_summary   = (
-                        f"Buy YES on {bet_decision['team_code']} "
-                        f"${bet_decision['size_usdc']:.2f} "
-                        f"@ {bet_decision['limit_price']}"
+                        f"Open long ${bet_decision['size_usdc']:.2f} on "
+                        f"{bet_decision['team_code']} "
+                        f"@ ≤{bet_decision['limit_price']}"
                     ),
-                    parameters = {
-                        "fixture_id":  str(identity_map["fixture_id"]),   # string not int
-                        "outcome":     final_decision.get("outcome"),
-                        "probability": final_decision.get("probability"),
+                    parameters       = {
+                        "fixture_id":  fixture_id_str,
+                        "team_code":   bet_decision["team_code"],
+                        "usd_size":    str(bet_decision["size_usdc"]),
+                        "limit_price": bet_decision["limit_price"],
                     },
-                    execution_status = order_result.get("status", "pending"),
+                    execution_status = "pending" if order_result.get("status") not in ["error", "rejected"] else "failed",
                     execution_id     = order_result.get("order_id"),
                     upstream_ids     = [rec_bet_think["record_id"]],
                 )
@@ -334,13 +377,33 @@ def run(home: str, away: str) -> dict:
                 session_id       = stm.session_id,
                 action_type      = "skip",
                 action_summary   = "Agent decided not to place a bet",
-                parameters       = {"reason": final_decision.get("rationale", "")},
-                execution_status = "skipped",
-                upstream_ids     = [rec_predict["record_id"]],
+                parameters       = {"reason": final_decision.get("rationale", "")[:200]},
+                execution_status = "confirmed",
+                upstream_ids     = [rec_predict["record_id"]] if final_decision.get("outcome") else [],
             )
             records.append(rec_skip)
 
-        # ── Step 7: Save to LTM ───────────────────────────────────────────────
+        # ── Step 8: Reflecting ────────────────────────────────────────────────
+        rec_reflect = reflecting(
+            session_id    = stm.session_id,
+            input_payload = json.dumps({
+                "outcome":       final_decision.get("outcome"),
+                "probability":   _pred_prob,
+                "should_bet":    final_decision.get("should_bet"),
+                "confidence":    final_decision.get("confidence_level"),
+                "tool_calls":    len(stm.tool_history),
+            }, default=str),
+            reflection = (
+                f"Decision: predict {final_decision.get('outcome')} "
+                f"@ {_pred_prob:.0%} confidence={final_decision.get('confidence_level')}. "
+                f"Bet placed: {bool(bet_decision and bet_decision.get('should_place_order'))}. "
+                f"Rationale: {final_decision.get('rationale', '')[:200]}"
+            )[:1000],
+            upstream_ids  = [rec_predict["record_id"]] if final_decision.get("outcome") else [],
+        )
+        records.append(rec_reflect)
+
+        # ── Step 9: Save to LTM ───────────────────────────────────────────────
         print(f"\nStep 6: Saving to LTM...")
         pm_prices = stm.polymarket.get("live_prices", {})
         ml_cons   = stm.sportmonks.get("predictions", {}).get("consensus", {})
@@ -377,30 +440,34 @@ def run(home: str, away: str) -> dict:
         )
         print(f"  Saved bet_id: {bet_id[:8]}...")
 
-        # ── Step 8: Submit to Arena ledger ────────────────────────────────────
+        # ── Step 10: Submit to Arena ledger ───────────────────────────────────
         print(f"\nStep 7: Submitting {len(records)} records to ledger...")
-        ledger_result = submit(records)
+        ledger_result = submit(
+            records,
+            fixture_id=fixture_id_str,
+        )
         print(f"  Success : {ledger_result['success']}")
         print(f"  Stored  : {ledger_result['stored']}")
         if ledger_result["errors"]:
-            print(f"  Errors  : {ledger_result['errors']}")
+            print(f"  Errors  : {len(ledger_result['errors'])} records failed")
+            for e in ledger_result["errors"]:
+                print(f"    [{e.get('index')}] {e.get('message','')[:80]}")
 
-        # ── Done ──────────────────────────────────────────────────────────────
         stm.status = "done"
         print(f"\n{'='*55}")
-        print(f"Session complete — {stm.session_id[:8]}...")
+        print(f"Session complete — {stm.session_id}")
         print(f"{'='*55}\n")
 
         return {
-            "session_id":     stm.session_id,
-            "fixture":        identity_map["fixture_name"],
-            "outcome":        final_decision.get("outcome"),
-            "should_bet":     final_decision.get("should_bet"),
-            "confidence":     final_decision.get("confidence_level"),
-            "bet_placed":     bool(bet_decision and bet_decision.get("should_place_order")),
-            "bet_size":       bet_decision.get("size_usdc") if bet_decision else None,
-            "ledger_stored":  ledger_result["stored"],
-            "bet_id":         bet_id,
+            "session_id":    stm.session_id,
+            "fixture":       identity_map["fixture_name"],
+            "outcome":       final_decision.get("outcome"),
+            "should_bet":    final_decision.get("should_bet"),
+            "confidence":    final_decision.get("confidence_level"),
+            "bet_placed":    bool(bet_decision and bet_decision.get("should_place_order")),
+            "bet_size":      bet_decision.get("size_usdc") if bet_decision else None,
+            "ledger_stored": ledger_result["stored"],
+            "bet_id":        bet_id,
         }
 
     except Exception as e:
@@ -423,9 +490,7 @@ def _place_order(
     size_usdc:   float,
     limit_price: float,
 ) -> dict:
-    """POST an order to the Arena."""
-    # --- debug cap: never bet more than $1 during testing ---
-    size_usdc = min(size_usdc, 1.0)
+    size_usdc = min(size_usdc, 1.0)   # debug cap
 
     payload = {
         "fixture_code":          str(fixture_id),
@@ -445,16 +510,15 @@ def _place_order(
         if r.ok:
             return r.json()
         if r.status_code == 404:
-            return {"status": "not_live", "note": "orders endpoint not live on staging"}
+            return {"status": "not_live"}
         return {"status": "rejected", "reason": r.text[:200]}
     except Exception as e:
         return {"status": "error", "reason": str(e)}
 
 
 def _compute_gap(prediction: dict, pm_prices: dict) -> float | None:
-    """Compute ML vs market gap in percentage points."""
     try:
-        outcome   = prediction.get("outcome")
+        outcome    = prediction.get("outcome")
         agent_prob = float(prediction.get("probability") or 0)
         market_mid = pm_prices.get(outcome)
         if market_mid is None:
