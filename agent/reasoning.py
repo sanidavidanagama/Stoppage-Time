@@ -34,7 +34,7 @@ def _get_client() -> genai.Client:
 
 # --- Prompt loader -----------------------------------------------------------
 
-_PROMPT_PATH = Path(__file__).parent / "prompts" / "system_prompt.md"
+_PROMPT_PATH = Path(__file__).parent / "prompts" / "reasoning_prompt.md"
 
 def _load_prompt() -> str:
     return _PROMPT_PATH.read_text(encoding="utf-8")
