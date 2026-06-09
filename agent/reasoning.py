@@ -273,6 +273,17 @@ def _extract_thinking(response) -> str:
             parts.append(getattr(part, "text", "") or "")
     return "\n".join(parts)
 
+def _validate_final_decision(result: dict) -> bool:
+    """Validate final_decision has correct shape and values."""
+    if result.get("type") != "final_decision":
+        return True   # tool_request and error types skip validation
+    if result.get("outcome") not in ["home", "away"]:
+        return False
+    if not isinstance(result.get("probability"), (int, float)):
+        return False
+    if not isinstance(result.get("should_bet"), bool):
+        return False
+    return True
 
 # --- Main call ---------------------------------------------------------------
 
@@ -305,13 +316,21 @@ def call(stm: STSSM) -> dict:
 
         raw      = _extract_text(response)
         thinking = _extract_thinking(response)
-        result   = _parse_response(raw)
+        result = _parse_response(raw)
 
         if result is None:
             return {
-                "type":     "error",
-                "reason":   "unparseable response",
-                "_raw":     raw,
+                "type":      "error",
+                "reason":    "unparseable response",
+                "_raw":      raw,
+                "_thinking": thinking,
+            }
+
+        if not _validate_final_decision(result):
+            return {
+                "type":      "error",
+                "reason":    "invalid final_decision — outcome must be home or away",
+                "_raw":      raw,
                 "_thinking": thinking,
             }
 

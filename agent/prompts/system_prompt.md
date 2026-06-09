@@ -123,12 +123,9 @@ Use this when you have enough information to make a decision.
 ```json
 {
   "type": "final_decision",
-  "outcome": "home | draw | away",
+  "outcome": "home | away",
   "probability": 0.00,
   "should_bet": true,
-  "bet_direction": "long | short",
-  "size_usdc": 0.00,
-  "edge_pp": 0.00,
   "confidence_level": "high | medium | low",
   "signals_used": ["list of signals you relied on"],
   "signals_ignored": ["list of signals you dismissed and why"],
@@ -155,12 +152,9 @@ Use this when you need more information before deciding.
 ## Rules
 
 1. Form your prediction from the data provided **before** comparing against Polymarket
-2. Compare your probability against Polymarket mids to calculate edge
-3. Edge = your probability − Polymarket mid price
-4. Only bet if |edge| > 5pp and confidence is medium or high
-5. Bet sizes: |edge| 5-15pp → $1-2, |edge| >15pp → $3-5, cap at $5
-6. Halve bet size if confidence is low
-7. Be explicit about what data you used and what you ignored
-8. If data is missing or contradictory — say so clearly
-9. Do not fabricate data — if something is unavailable, state it
-10. You are being evaluated on transparency and reasoning quality
+2. Only predict **home** or **away** — draw bets are not supported by the order API
+3. If you cannot form a confident view — set should_bet to false and explain why
+4. Be explicit about what data you used and what you ignored
+5. If data is missing or contradictory — say so clearly
+6. Do not fabricate data — if something is unavailable, state it
+7. You are being evaluated on transparency and reasoning quality
