@@ -117,6 +117,8 @@ venv.bak/
 # Chroma DB
 .chroma/
 .chromadb/
+*.bin
+*.sqlite3
 
 # Sqlite databases
 *.db
