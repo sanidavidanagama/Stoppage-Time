@@ -427,13 +427,14 @@ def run(home: str, away: str) -> dict:
             print(f"\nStep 4: Agent decided not to bet.")
             print(f"  Reason: {final_decision.get('rationale', '')[:100]}")
 
-            rec_skip = acting(
-                session_id       = stm.session_id,
-                action_type      = "skip",
-                action_summary   = "Agent decided not to place a bet",
-                parameters       = {"reason": final_decision.get("rationale", "")[:200]},
-                execution_status = "confirmed",
-                upstream_ids     = [rec_predict["record_id"]] if final_decision.get("outcome") else [],
+            rec_skip = other(
+                session_id   = stm.session_id,
+                label        = "no_bet",
+                data         = {
+                    "reason": final_decision.get("rationale", "")[:200],
+                    "should_bet": False,
+                },
+                upstream_ids = [rec_predict["record_id"]] if final_decision.get("outcome") else [],
             )
             records.append(rec_skip)
 

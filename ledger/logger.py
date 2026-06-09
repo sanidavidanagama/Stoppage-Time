@@ -22,6 +22,7 @@ from config import settings
 
 LEDGER_ENDPOINT = f"{settings.ARENA}/api/v1/arena/ledger/records/batch"
 SCHEMA_VERSION  = settings.LEDGER_SCHEMA_VERSION
+LEDGER_BATCH_SIZE = 4
 
 
 # --- Base record builder -----------------------------------------------------
@@ -121,9 +122,11 @@ def thinking(
     mi = {
         "provider":   "gemini",
         "model_name": model_name,
-        "tokens_in":  tokens_in,
-        "tokens_out": tokens_out,
     }
+    if tokens_in is not None:
+        mi["tokens_in"] = tokens_in
+    if tokens_out is not None:
+        mi["tokens_out"] = tokens_out
     if internal_reasoning:
         mi["internal_reasoning"] = internal_reasoning
 
@@ -213,33 +216,58 @@ def submit(records: list[dict], fixture_id: str | None = None) -> dict:
     if not records:
         return {"success": True, "stored": 0, "errors": [], "response": None}
 
-    payload = {"records": records}
-    if fixture_id:
-        payload["fixture_id"] = fixture_id
+    batch_size = 1
+    stored = 0
+    errors: list[dict] = []
+    responses: list[dict] = []
 
-    try:
-        r = requests.post(
-            LEDGER_ENDPOINT,
-            headers = settings.H_ARENA,
-            json    = payload,
-            timeout = 60,
-        )
-        if r.status_code == 404:
-            return {"success": True, "stored": 0, "errors": [],
-                    "response": {"note": "ledger endpoint not live (404)"}}
-        if r.ok:
+    for batch_start in range(0, len(records), batch_size):
+        batch = records[batch_start:batch_start + batch_size]
+        payload = {"records": batch}
+        if fixture_id:
+            payload["fixture_id"] = fixture_id
+
+        try:
+            r = requests.post(
+                LEDGER_ENDPOINT,
+                headers = settings.H_ARENA,
+                json    = payload,
+                timeout = 60,
+            )
+            if r.status_code == 404:
+                return {"success": True, "stored": stored, "errors": errors,
+                        "response": {"note": "ledger endpoint not live (404)"}}
+
+            if not r.ok:
+                errors.append({
+                    "batch_start": batch_start,
+                    "message": r.text[:1000],
+                    "status_code": r.status_code,
+                })
+                continue
+
             resp = r.json()
-            return {
-                "success": True,
-                "stored":  len(resp.get("records", [])),
-                "errors":  resp.get("errors", []),
-                "response": resp,
-            }
-        return {"success": False, "stored": 0,
-                "errors": [{"message": r.text[:300]}], "response": None}
-    except Exception as e:
-        return {"success": False, "stored": 0,
-                "errors": [{"message": str(e)}], "response": None}
+            stored += len(resp.get("records", []))
+
+            for err in resp.get("errors", []):
+                err_copy = dict(err)
+                if isinstance(err_copy.get("index"), int):
+                    err_copy["index"] = err_copy["index"] + batch_start
+                errors.append(err_copy)
+
+            responses.append(resp)
+        except Exception as e:
+            errors.append({
+                "batch_start": batch_start,
+                "message": str(e),
+            })
+
+    return {
+        "success": len(errors) == 0,
+        "stored":  stored,
+        "errors":  errors,
+        "response": responses,
+    }
 
 
 # --- Helpers -----------------------------------------------------------------

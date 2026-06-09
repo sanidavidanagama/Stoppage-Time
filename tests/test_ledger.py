@@ -67,6 +67,13 @@ def test_thinking_model_invocation():
     assert mi["tokens_out"] == 50
 
 
+def test_thinking_omits_null_token_fields():
+    rec = thinking("s1", "prompt", {}, "gemini-2.5-flash", None, None)
+    mi  = rec["model_invocation"]
+    assert "tokens_in" not in mi
+    assert "tokens_out" not in mi
+
+
 def test_thinking_with_internal_reasoning():
     rec = thinking("s1", "p", {}, "gemini-2.5-flash", 10, 5,
                    internal_reasoning="thought...")
