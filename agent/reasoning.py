@@ -308,8 +308,9 @@ def call(stm: STSSM) -> dict:
             model    = settings.GEMINI_MODEL,
             contents = prompt,
             config   = types.GenerateContentConfig(
-                max_output_tokens = 2000,
-                thinking_config   = types.ThinkingConfig(
+                max_output_tokens  = 2000,
+                response_mime_type = "application/json",   # force JSON
+                thinking_config    = types.ThinkingConfig(
                     include_thoughts = True,
                     thinking_budget  = 1024,
                 ),
