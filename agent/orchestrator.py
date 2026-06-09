@@ -203,7 +203,7 @@ def run(home: str, away: str) -> dict:
                 model_name         = settings.GEMINI_MODEL,
                 tokens_in          = None,
                 tokens_out         = None,
-                internal_reasoning = (response.get("_thinking") or "")[:1000], 
+                internal_reasoning = None, 
                 upstream_ids       = upstream,
                 inputs             = [{"input_payload": json.dumps({
                     "sportmonks": stm.sportmonks.get("predictions", {}).get("consensus"),
@@ -319,17 +319,17 @@ def run(home: str, away: str) -> dict:
             rec_bet_think = thinking(
                 session_id         = stm.session_id,
                 prompt             = "Bet manager — decide size and limit price",
-                output_payload     = bet_decision,
+                output_payload     = {k: v for k, v in bet_decision.items()
+                                    if k not in ["_thinking", "_raw"]},
                 model_name         = settings.GEMINI_MODEL,
                 tokens_in          = None,
                 tokens_out         = None,
-                internal_reasoning = (bet_decision.get("_thinking") or "")[:1000],
+                internal_reasoning = None,   # remove — too large
                 upstream_ids       = [rec_predict["record_id"]],
                 inputs             = [{"input_payload": json.dumps({
                     "prediction":  final_decision,
                     "live_prices": live_prices,
-                    "bankroll":    get_bankroll_summary(),
-                }, default=str)}],
+                }, default=str)[:2000]}],
             )
             records.append(rec_bet_think)
 

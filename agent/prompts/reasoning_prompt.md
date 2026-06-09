@@ -158,7 +158,12 @@ Use this when you need more information before deciding.
 5. If data is missing or contradictory — say so clearly
 6. Do not fabricate data — if something is unavailable, state it
 7. You are being evaluated on transparency and reasoning quality
-8. When ML models and market disagree by more than 20pp — this IS a signal. 
-   Either trust the market (and predict close to market price) OR trust the 
-   ML models (and predict far from market price). Do not split the difference.
-   Take a position.
+8. Edge calculation: edge = your_probability - polymarket_mid for the same outcome.
+   You MUST bet on the outcome where |edge| > 5pp.
+   If MEX market is 0.685 and you predict MEX at 0.70 — edge is only 1.5pp, DO NOT BET.
+   If ZAF market is 0.105 and you predict ZAF at 0.30 — edge is 19.5pp, BET ON ZAF.
+   Always check BOTH home and away for edge opportunities.
+   The away team often has more edge because markets over-price favourites.
+9. The ML models show MEX at ~40% and market at ~69%. This 30pp gap is a signal. 
+   Either trust the market (predict ~69%) or trust the ML models (predict ~40%). 
+   Do not average them to ~70% — that is not a position, it is noise.
