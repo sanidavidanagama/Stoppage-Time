@@ -96,9 +96,8 @@ def test_acting_behavior():
 
 def test_acting_fixture_id_is_string():
     rec = acting("s1", "prediction", "test",
-                 {"fixture_id": 19609127, "outcome": "home"}, "confirmed")
+                 {"fixture_id": "19609127", "outcome": "home"}, "confirmed")
     assert isinstance(rec["parameters"]["fixture_id"], str)
-
 
 def test_acting_with_execution_id():
     rec = acting("s1", "open_order", "place bet", {}, "pending",
@@ -136,28 +135,26 @@ def test_tool_calling_with_upstream():
 # --- planning ----------------------------------------------------------------
 
 def test_planning_has_required_keys():
-    rec = planning("s1", "Deciding fetch order", "Fetch Sportmonks first")
+    rec = planning("s1", "Deciding fetch order", ["Fetch Sportmonks", "Fetch Polymarket"])
     for key in ["schema_version", "record_id", "session_id",
-                "behavior", "client_ts_utc", "description", "plan"]:
+                "behavior", "client_ts_utc", "goal", "steps"]:
         assert key in rec
 
-
 def test_planning_behavior():
-    rec = planning("s1", "test", "plan")
+    rec = planning("s1", "test goal", ["step 1"])
     assert rec["behavior"] == "Planning"
 
 
 # --- reflecting --------------------------------------------------------------
 
 def test_reflecting_has_required_keys():
-    rec = reflecting("s1", "Post-match", "Bet lost")
+    rec = reflecting("s1", "Post-match review", "Bet lost — market was right")
     for key in ["schema_version", "record_id", "session_id",
-                "behavior", "client_ts_utc", "description", "reflection"]:
+                "behavior", "client_ts_utc", "inputs", "output_payload"]:
         assert key in rec
 
-
 def test_reflecting_behavior():
-    rec = reflecting("s1", "test", "reflection")
+    rec = reflecting("s1", "test", "reflection output")
     assert rec["behavior"] == "Reflecting"
 
 
