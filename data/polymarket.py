@@ -16,6 +16,9 @@ import requests
 from config import settings
 
 
+POLYMARKET_TIMEOUT = 30
+
+
 # --- Market metadata ----------------------------------------------------------
 
 def get_market_meta(identity_map: dict) -> dict:
@@ -39,13 +42,16 @@ def get_market_meta(identity_map: dict) -> dict:
     if not identity_map.get("pm_event_slug"):
         return _unavailable_meta()
 
-    r = requests.get(
-        f"{settings.POLYMARKET_GAMMA}/events",
-        params={"slug": identity_map["pm_event_slug"]},
-        headers=settings.H_ARENA,
-        timeout=15,
-    )
-    r.raise_for_status()
+    try:
+        r = requests.get(
+            f"{settings.POLYMARKET_GAMMA}/events",
+            params={"slug": identity_map["pm_event_slug"]},
+            headers=settings.H_ARENA,
+            timeout=POLYMARKET_TIMEOUT,
+        )
+        r.raise_for_status()
+    except requests.RequestException:
+        return _unavailable_meta()
 
     events = r.json().get("body") or []
     if not events:
@@ -147,13 +153,16 @@ def get_price_history(identity_map: dict) -> dict:
     if not identity_map.get("pm_event_slug"):
         return {"home": None, "draw": None, "away": None, "available": False}
 
-    r = requests.get(
-        f"{settings.POLYMARKET_GAMMA}/events",
-        params={"slug": identity_map["pm_event_slug"]},
-        headers=settings.H_ARENA,
-        timeout=15,
-    )
-    r.raise_for_status()
+    try:
+        r = requests.get(
+            f"{settings.POLYMARKET_GAMMA}/events",
+            params={"slug": identity_map["pm_event_slug"]},
+            headers=settings.H_ARENA,
+            timeout=POLYMARKET_TIMEOUT,
+        )
+        r.raise_for_status()
+    except requests.RequestException:
+        return {"home": None, "draw": None, "away": None, "available": False}
 
     events = r.json().get("body") or []
     if not events:

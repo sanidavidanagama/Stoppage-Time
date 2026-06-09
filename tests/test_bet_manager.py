@@ -6,7 +6,7 @@ Run with: pytest tests/test_bet_manager.py -v -m "not live"
 """
 
 import pytest
-from agent.bet_manager import _parse_json, _skip, decide
+from agent.bet_manager import _parse_json, _skip, _fallback_decision, decide
 
 
 # --- _parse_json -------------------------------------------------------------
@@ -63,3 +63,21 @@ def test_decide_returns_required_keys():
 def test_skip_direction_is_long():
     result = _skip("reason")
     assert result["direction"] == "long"
+
+
+def test_fallback_decision_places_bet_for_valid_edge():
+    prediction = {
+        "outcome": "home",
+        "probability": 0.52,
+        "confidence_level": "medium",
+    }
+    live_prices = {"home": 0.40, "away": 0.30}
+    bankroll = {"current_balance": 100.0}
+
+    result = _fallback_decision(prediction, live_prices, "MEX", "ZAF", bankroll)
+
+    assert result is not None
+    assert result["should_place_order"] is True
+    assert result["team_code"] == "MEX"
+    assert result["outcome"] == "home"
+    assert result["size_usdc"] > 0

@@ -92,7 +92,17 @@ def run(home: str, away: str) -> dict:
         print("\nStep 2: Fetching data...")
 
         # Sportmonks
-        stm.sportmonks = sm_get_all(identity_map)
+        try:
+            stm.sportmonks = sm_get_all(identity_map)
+        except Exception as e:
+            stm.sportmonks = {
+                "predictions": {"available": False},
+                "odds": {"available": False},
+                "xg": {"available": False},
+                "lineups": {"available": False},
+                "meta": {"available": False},
+                "error": str(e),
+            }
         rec_sm = observing(
             stm.session_id,
             f"Fetched Sportmonks data for {identity_map['fixture_name']}: "
@@ -106,7 +116,15 @@ def run(home: str, away: str) -> dict:
               f"odds={stm.sportmonks['odds']['available']}")
 
         # Polymarket
-        stm.polymarket = pm_get_all(identity_map)
+        try:
+            stm.polymarket = pm_get_all(identity_map)
+        except Exception as e:
+            stm.polymarket = {
+                "meta": {"available": False, "liquidity": 0},
+                "live_prices": {"home": None, "draw": None, "away": None, "sum": None, "available": False},
+                "price_history": {"home": None, "draw": None, "away": None, "available": False},
+                "error": str(e),
+            }
         rec_pm = observing(
             stm.session_id,
             f"Fetched Polymarket data: "
@@ -120,7 +138,14 @@ def run(home: str, away: str) -> dict:
               f"liquidity=${stm.polymarket['meta'].get('liquidity', 0):,.0f}")
 
         # Supabase
-        stm.supabase = sb_get_all(identity_map)
+        try:
+            stm.supabase = sb_get_all(identity_map)
+        except Exception as e:
+            stm.supabase = {
+                "checkpoint_stats": {"available": False},
+                "country_style": {"available": False},
+                "error": str(e),
+            }
         rec_sb = observing(
             stm.session_id,
             f"Fetched Supabase data: "
@@ -134,7 +159,10 @@ def run(home: str, away: str) -> dict:
               f"priors={stm.supabase['country_style']['available']}")
 
         # News
-        articles = fetch_news(home, away)
+        try:
+            articles = fetch_news(home, away)
+        except Exception:
+            articles = []
         if articles:
             embedded = embed_articles(articles)
             clear_collection()
@@ -152,11 +180,26 @@ def run(home: str, away: str) -> dict:
         # Weather
         from data.sportmonks import get_fixture_meta
         from data.weather    import get_match_weather
-        meta    = get_fixture_meta(identity_map)
-        wx      = get_match_weather(
-            venue_id     = meta.get("venue_id"),
-            kickoff_date = stm.kickoff[:10] if stm.kickoff else None,
-        )
+        try:
+            meta = get_fixture_meta(identity_map)
+        except Exception:
+            meta = {"venue_id": None}
+        try:
+            wx = get_match_weather(
+                venue_id     = meta.get("venue_id"),
+                kickoff_date = stm.kickoff[:10] if stm.kickoff else None,
+            )
+        except Exception as e:
+            wx = {
+                "venue": None,
+                "city": None,
+                "temp_c": None,
+                "condition": None,
+                "wind_kph": None,
+                "precip_mm": None,
+                "available": False,
+                "summary": f"unavailable ({e})",
+            }
         rec_wx = other(
             session_id = stm.session_id,
             label      = "weather_fetch",
@@ -337,6 +380,15 @@ def run(home: str, away: str) -> dict:
             print(f"  Team code         : {bet_decision.get('team_code')}")
             print(f"  Size              : ${bet_decision.get('size_usdc')}")
             print(f"  Edge              : {bet_decision.get('edge_pp')}pp")
+            if bet_decision.get("rationale"):
+                print(f"  Bet rationale     : {bet_decision.get('rationale')}")
+
+            # debug — print size of each record
+            for i, rec in enumerate(records):
+                size = len(json.dumps(rec, default=str))
+                print(f"  Record [{i:2d}] {rec['behavior']:12s} — {size:6d} bytes")
+            print()
+
 
             # ── Step 7: Place order ───────────────────────────────────────────
             if bet_decision.get("should_place_order"):
@@ -369,6 +421,8 @@ def run(home: str, away: str) -> dict:
                 )
                 records.append(rec_order)
                 print(f"  Order status: {order_result.get('status', 'unknown')}")
+                if order_result.get("reason"):
+                    print(f"  Order reason : {order_result.get('reason')}")
         else:
             print(f"\nStep 4: Agent decided not to bet.")
             print(f"  Reason: {final_decision.get('rationale', '')[:100]}")
@@ -382,6 +436,9 @@ def run(home: str, away: str) -> dict:
                 upstream_ids     = [rec_predict["record_id"]] if final_decision.get("outcome") else [],
             )
             records.append(rec_skip)
+
+        order_status = order_result.get("status") if order_result else None
+        order_placed = order_status not in {None, "error", "rejected", "not_live"}
 
         # ── Step 8: Reflecting ────────────────────────────────────────────────
         rec_reflect = reflecting(
@@ -464,7 +521,9 @@ def run(home: str, away: str) -> dict:
             "outcome":       final_decision.get("outcome"),
             "should_bet":    final_decision.get("should_bet"),
             "confidence":    final_decision.get("confidence_level"),
-            "bet_placed":    bool(bet_decision and bet_decision.get("should_place_order")),
+            "bet_placed":    order_placed,
+            "order_status":  order_status,
+            "order_reason":  order_result.get("reason") if order_result else None,
             "bet_size":      bet_decision.get("size_usdc") if bet_decision else None,
             "ledger_stored": ledger_result["stored"],
             "bet_id":        bet_id,
@@ -493,7 +552,7 @@ def _place_order(
     size_usdc = min(size_usdc, 1.0)   # debug cap
 
     payload = {
-        "fixture_code":          str(fixture_id),
+        "fixture_id":            str(fixture_id),
         "team_code":             team_code,
         "usd_size":              str(round(size_usdc, 2)),
         "limit_price":           limit_price,

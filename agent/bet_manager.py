@@ -95,7 +95,10 @@ def decide(
         result   = _parse_json(raw)
 
         if result is None:
-            return _skip("Gemini returned unparseable JSON")
+            result = _fallback_decision(prediction, live_prices, home_code, away_code, bankroll)
+            if result is None:
+                return _skip("Gemini returned unparseable JSON")
+            result["rationale"] = f"Fallback decision used after unparseable Gemini JSON. {result['rationale']}"
 
         # --- hard safety limits ------------------------------------------
         # cap size
@@ -110,6 +113,13 @@ def decide(
         # no draw bets
         if result.get("outcome") == "draw":
             return _skip("Draw bets not supported")
+
+        # recover missing team_code from the chosen outcome
+        if result.get("team_code") not in [home_code, away_code]:
+            if result.get("outcome") == "home":
+                result["team_code"] = home_code
+            elif result.get("outcome") == "away":
+                result["team_code"] = away_code
 
         # validate team_code
         if result.get("team_code") not in [home_code, away_code]:
@@ -151,6 +161,61 @@ def _parse_json(raw: str) -> dict | None:
         return json.loads(m.group(0))
     except json.JSONDecodeError:
         return None
+
+
+def _fallback_decision(
+    prediction: dict,
+    live_prices: dict,
+    home_code: str,
+    away_code: str,
+    bankroll: dict,
+) -> dict | None:
+    outcome = prediction.get("outcome")
+    if outcome not in ["home", "away"]:
+        return None
+
+    market_mid = live_prices.get(outcome)
+    if market_mid is None:
+        return None
+
+    agent_prob = float(prediction.get("probability") or 0)
+    edge_pp = round((agent_prob - float(market_mid)) * 100, 1)
+
+    if abs(edge_pp) < settings.MIN_EDGE_PP:
+        return _skip(f"Edge below threshold: {edge_pp}pp")
+
+    confidence = (prediction.get("confidence_level") or "medium").lower()
+    if abs(edge_pp) >= 15:
+        size_usdc = 4.0
+    else:
+        size_usdc = 1.5
+
+    if confidence == "low":
+        size_usdc *= 0.5
+    elif confidence == "high":
+        size_usdc *= 1.5
+
+    size_usdc = round(min(size_usdc, settings.MAX_BET_SIZE, round(bankroll["current_balance"] * 0.05, 2)), 2)
+    if size_usdc <= 0:
+        return _skip("Bankroll cap reduced size to zero")
+
+    team_code = home_code if outcome == "home" else away_code
+    limit_price = round(min(max(float(market_mid) + 0.015, 0.01), 0.99), 3)
+
+    return {
+        "_available": True,
+        "should_place_order": True,
+        "team_code": team_code,
+        "outcome": outcome,
+        "size_usdc": size_usdc,
+        "limit_price": limit_price,
+        "edge_pp": edge_pp,
+        "direction": "long",
+        "rationale": (
+            f"Heuristic fallback: edge {edge_pp}pp on {outcome}, "
+            f"size {size_usdc:.2f}, limit {limit_price:.3f}."
+        ),
+    }
 
 
 def _skip(reason: str) -> dict:

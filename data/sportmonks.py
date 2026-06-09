@@ -18,6 +18,9 @@ import requests
 from config import settings
 
 
+SPORTMONKS_TIMEOUT = 30
+
+
 # --- Predictions --------------------------------------------------------------
 
 def get_predictions(identity_map: dict) -> dict:
@@ -33,13 +36,21 @@ def get_predictions(identity_map: dict) -> dict:
             "available": bool
         }
     """
-    r = requests.get(
-        f"{settings.SPORTMONKS_PROXY}/fixtures/{identity_map['fixture_id']}",
-        params={"include": "predictions"},
-        headers=settings.H_ARENA,
-        timeout=15,
-    )
-    r.raise_for_status()
+    try:
+        r = requests.get(
+            f"{settings.SPORTMONKS_PROXY}/fixtures/{identity_map['fixture_id']}",
+            params={"include": "predictions"},
+            headers=settings.H_ARENA,
+            timeout=SPORTMONKS_TIMEOUT,
+        )
+        r.raise_for_status()
+    except requests.RequestException:
+        return {
+            "one_x_two": [],
+            "consensus": None,
+            "binary": [],
+            "available": False,
+        }
 
     raw = r.json()["body"]["data"].get("predictions") or []
 
@@ -95,13 +106,21 @@ def get_odds(identity_map: dict) -> dict:
             "available":        bool
         }
     """
-    r = requests.get(
-        f"{settings.SPORTMONKS_PROXY}/fixtures/{identity_map['fixture_id']}",
-        params={"include": "odds"},
-        headers=settings.H_ARENA,
-        timeout=15,
-    )
-    r.raise_for_status()
+    try:
+        r = requests.get(
+            f"{settings.SPORTMONKS_PROXY}/fixtures/{identity_map['fixture_id']}",
+            params={"include": "odds"},
+            headers=settings.H_ARENA,
+            timeout=SPORTMONKS_TIMEOUT,
+        )
+        r.raise_for_status()
+    except requests.RequestException:
+        return {
+            "consensus": None,
+            "bookmaker_count": 0,
+            "stale_count": 0,
+            "available": False,
+        }
 
     raw  = r.json()["body"]["data"].get("odds") or []
     ftrs = [o for o in raw if o.get("market_id") == 1]
@@ -160,13 +179,20 @@ def get_xg(identity_map: dict) -> dict:
             "available": bool
         }
     """
-    r = requests.get(
-        f"{settings.SPORTMONKS_PROXY}/fixtures/{identity_map['fixture_id']}",
-        params={"include": "xgfixture"},
-        headers=settings.H_ARENA,
-        timeout=15,
-    )
-    r.raise_for_status()
+    try:
+        r = requests.get(
+            f"{settings.SPORTMONKS_PROXY}/fixtures/{identity_map['fixture_id']}",
+            params={"include": "xgfixture"},
+            headers=settings.H_ARENA,
+            timeout=SPORTMONKS_TIMEOUT,
+        )
+        r.raise_for_status()
+    except requests.RequestException:
+        return {
+            "home_xg": None,
+            "away_xg": None,
+            "available": False,
+        }
 
     xg_rows = r.json()["body"]["data"].get("xgfixture") or []
 
@@ -202,13 +228,20 @@ def get_lineups(identity_map: dict) -> dict:
             "available": bool
         }
     """
-    r = requests.get(
-        f"{settings.SPORTMONKS_PROXY}/fixtures/{identity_map['fixture_id']}",
-        params={"include": "lineups"},
-        headers=settings.H_ARENA,
-        timeout=15,
-    )
-    r.raise_for_status()
+    try:
+        r = requests.get(
+            f"{settings.SPORTMONKS_PROXY}/fixtures/{identity_map['fixture_id']}",
+            params={"include": "lineups"},
+            headers=settings.H_ARENA,
+            timeout=SPORTMONKS_TIMEOUT,
+        )
+        r.raise_for_status()
+    except requests.RequestException:
+        return {
+            "home": None,
+            "away": None,
+            "available": False,
+        }
 
     lineups = r.json()["body"]["data"].get("lineups") or []
 
@@ -248,13 +281,22 @@ def get_fixture_meta(identity_map: dict) -> dict:
             "length":     int,
         }
     """
-    r = requests.get(
-        f"{settings.SPORTMONKS_PROXY}/fixtures/{identity_map['fixture_id']}",
-        params={"include": ""},
-        headers=settings.H_ARENA,
-        timeout=15,
-    )
-    r.raise_for_status()
+    try:
+        r = requests.get(
+            f"{settings.SPORTMONKS_PROXY}/fixtures/{identity_map['fixture_id']}",
+            params={"include": ""},
+            headers=settings.H_ARENA,
+            timeout=SPORTMONKS_TIMEOUT,
+        )
+        r.raise_for_status()
+    except requests.RequestException:
+        return {
+            "venue_id":   None,
+            "referee_id": None,
+            "round":      identity_map["round"],
+            "stage":      identity_map["stage"],
+            "length":     90,
+        }
 
     data = r.json()["body"]["data"]
 
