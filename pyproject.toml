@@ -22,3 +22,6 @@ dependencies = [
 ]
 [tool.pytest.ini_options]
 pythonpath = ["."]
+markers = [
+    "live: marks tests that make real API calls (deselect with -m 'not live')",
+]
