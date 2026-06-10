@@ -1,19 +1,17 @@
 
 ![Stoppage Time Banner](<docs/Stoppage Time Banner.png>)
 
-<p align="center">
-  <img alt="Python" src="https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54" />
-  <img alt="uv" src="https://img.shields.io/badge/uv-0DB9FF?style=for-the-badge" />
-  <img alt="pytest" src="https://img.shields.io/badge/pytest-151515?style=for-the-badge&logo=pytest" />
-  <img alt="Supabase" src="https://img.shields.io/badge/supabase-3ECF8E?style=for-the-badge&logo=supabase" />
-  <img alt="Stair AI" src="https://img.shields.io/badge/stair--ai-FF6B6B?style=for-the-badge" />
-  <img alt="Polymarket" src="https://img.shields.io/badge/polymarket-1F8ACB?style=for-the-badge" />
-  <img alt="Anthropic" src="https://img.shields.io/badge/anthropic-6C4EFF?style=for-the-badge" />
-  <img alt="Gemini" src="https://img.shields.io/badge/gemini-4285F4?style=for-the-badge&logo=google" />
-</p>
 
 # Stoppage Time - FIFA World Cup '26 Polymarket Betting Agent
 
+![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
+![uv](https://img.shields.io/badge/uv-0DB9FF?style=for-the-badge)
+![pytest](https://img.shields.io/badge/pytest-151515?style=for-the-badge&logo=pytest)
+![Supabase](https://img.shields.io/badge/supabase-3ECF8E?style=for-the-badge&logo=supabase)
+![Stair AI](https://img.shields.io/badge/stair--ai-FF6B6B?style=for-the-badge)
+![Polymarket](https://img.shields.io/badge/polymarket-1F8ACB?style=for-the-badge)
+![Anthropic](https://img.shields.io/badge/anthropic-6C4EFF?style=for-the-badge)
+![Gemini](https://img.shields.io/badge/gemini-4285F4?style=for-the-badge&logo=google)
 
 
 Stoppage Time is a **highly reasoning** betting agent built around three specialist sub-agents: a Reasoning Agent that analyses all available data and decides whether a bet is worth placing, a Tactics Agent that performs deep formation and style analysis when the Reasoning Agent needs a second opinion, and a Bet Manager that decides exactly how much to stake and at what price. The Reasoning Agent uses a ReAct loop, meaning it alternates between Reasoning (thinking about what it knows) and Acting (calling a data tool to fill a gap), repeating until it's confident enough to make a final call. It pulls data from five sources; Sportmonks ML predictions, live Polymarket prices, bookmaker consensus, historical Supabase stats, and live news, and only places a bet when its predicted probability differs from the market by more than 5 percentage points. Every decision step is logged to the Stair AI reasoning ledger, giving a full audit trail from the first data fetch to the final order.
