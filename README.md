@@ -1,85 +1,132 @@
-# World Cup Agent Arena — Sample Agent
 
-A step-by-step walkthrough of the eight-step pre-match flow for building a
-trading agent on the [Stair AI](https://staging.stair-ai.com) World Cup Agent
-Arena. Everything lives in a single notebook,
-[`worldcup-arena-sample-agent.ipynb`](worldcup-arena-sample-agent.ipynb), which
-you run top-to-bottom.
+![Stoppage Time Banner](<docs/Stoppage Time Banner.png>)
 
-The agent pulls match data, has Claude digest it, predicts an outcome, decides a
-strategy, opens a position, and reports a reasoning-ledger trace — all through
-the arena's proxy endpoints.
 
-## What the notebook does
+# Stoppage Time - FIFA World Cup '26 Polymarket Betting Agent
 
-| Step | What happens |
-|------|--------------|
-| Setup  | Configure credentials, endpoints, and the LLM/ledger constants |
-| 1 | List World Cup 2026 fixtures via the Sportmonks schedules proxy, and resolve the Polymarket event slug from the arena `/web/mapping` endpoint |
-| 2 | Fetch full Sportmonks fixture detail (participants, predictions, odds, xG), then have Claude digest the pre-match inputs into a compact JSON |
-| 3 | Fetch the Polymarket moneyline market + midpoints, then have Claude digest the market |
-| 4 | Discover, fetch, and digest aggregated data from Supabase |
-| 5 | LLM #1 — predict the outcome |
-| 6 | LLM #2 — decide a strategy |
-| 7 | Open a position |
-| 8 | Report the reasoning-ledger trace |
+![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
+![uv](https://img.shields.io/badge/uv-0DB9FF?style=for-the-badge)
+![pytest](https://img.shields.io/badge/pytest-151515?style=for-the-badge&logo=pytest)
+![Supabase](https://img.shields.io/badge/supabase-3ECF8E?style=for-the-badge&logo=supabase)
+![Stair AI](https://img.shields.io/badge/stair--ai-FF6B6B?style=for-the-badge)
+![Polymarket](https://img.shields.io/badge/polymarket-1F8ACB?style=for-the-badge)
+![Anthropic](https://img.shields.io/badge/anthropic-6C4EFF?style=for-the-badge)
+![Gemini](https://img.shields.io/badge/gemini-4285F4?style=for-the-badge&logo=google)
 
-## Prerequisites
 
-- Python 3.11
-- An **arena API key** — mint one at https://staging.stair-ai.com/api-keys
-- An **Anthropic API key** — get one at https://console.anthropic.com
+Stoppage Time is a **highly reasoning** betting agent built around three specialist sub-agents: a Reasoning Agent that analyses all available data and decides whether a bet is worth placing, a Tactics Agent that performs deep formation and style analysis when the Reasoning Agent needs a second opinion, and a Bet Manager that decides exactly how much to stake and at what price. The Reasoning Agent uses a ReAct loop, meaning it alternates between Reasoning (thinking about what it knows) and Acting (calling a data tool to fill a gap), repeating until it's confident enough to make a final call. It pulls data from five sources; Sportmonks ML predictions, live Polymarket prices, bookmaker consensus, historical Supabase stats, and live news, and only places a bet when its predicted probability differs from the market by more than 5 percentage points. Every decision step is logged to the Stair AI reasoning ledger, giving a full audit trail from the first data fetch to the final order.
 
-The Supabase URL and publishable key are shared across every builder on staging
-and are already filled in within the notebook — no per-account setup needed.
+---
 
-## Setup
+## Project structure
 
-1. Install dependencies (a virtual environment is recommended):
+Top-level files and folders:
 
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
-   ```
+- `main.py` — lightweight runner / CLI entrypoint
+- `config.py` — configuration and constants
+- `agent/` — core agent code
+  - `orchestrator.py` — coordinates sub-agents and the run loop
+  - `reasoning.py` — the Reasoning Agent and ReAct loop implementation
+  - `bet_manager.py` — stake sizing and order execution logic
+  - `tool_executor.py` — wrappers to call external data sources and tools
+  - `memory/` — memory backends (`ltm.py`, `stssm.py`)
+  - `prompts/` — agent prompt templates
+- `data/` — data adapters for Sportmonks, Polymarket, Supabase, bookmakers, news
+- `ledger/` — reasoning-ledger client, logging and reader utilities
+- `tests/` — automated tests for the components
+- notebooks/ — demonstration and analysis notebooks (backtests, EDA)
 
-2. Open the notebook:
+See the `tests` folder for unit and integration tests: [tests](tests)
 
-   ```bash
-   jupyter notebook worldcup-arena-sample-agent.ipynb
-   ```
+---
 
-3. In the **Setup** cell, replace the two placeholder credentials:
+## Architecture (step-by-step)
 
-   - `ARENA_KEY` → your arena API key
-   - `ANTHROPIC_KEY` → your Anthropic API key
+1. Runner: `main.py` is the CLI entrypoint. It parses arguments (home/away teams) and starts a single pre-match evaluation run.
+2. Orchestrator: `agent/orchestrator.py` is the high-level coordinator. It initializes sub-agents, loads configuration and memory, and drives the evaluation loop for a single fixture.
+3. Reasoning Agent: `agent/reasoning.py` implements a ReAct loop: it alternates between Reasoning (generating hypotheses, assessing confidence, or deciding which data to fetch next) and Acting (invoking `tool_executor.py` to fetch external data). The loop repeats until a confidence threshold is met or a maximum number of steps is reached.
+4. Tool Executor: `agent/tool_executor.py` provides safe, rate-limited wrappers around the external data sources (Sportmonks, Polymarket, Supabase, bookmaker feeds, news). It normalizes responses into a compact format the Reasoning Agent can consume.
+5. Tactics Agent: Called by the Reasoning Agent when formation/style-level detail is required. Performs deeper analysis of team tactics, lineup and historical match-ups using data in `data/tactics.py` and news embeds.
+6. Bet Manager: `agent/bet_manager.py` is responsible for stake calculation, order construction and submission. It receives the final probability estimate and market snapshot then returns an actionable order (or no-op) based on bankroll constraints, risk limits and edge threshold (5% by default).
+7. Ledger: Every decision, intermediate step, data fetch and final order is recorded to the Stair AI reasoning ledger via the code in `ledger/` to create an audit trail.
 
-4. Run the cells top-to-bottom.
+The typical run therefore flows: `main.py` -> `orchestrator` -> `reasoning` (ReAct loop) -> `tool_executor` (Act) -> optionally `tactics` -> `bet_manager` -> `ledger`.
 
-## Using a different LLM provider (optional)
+---
 
-The notebook calls **Anthropic** by default, but every LLM cell also ships
-ready-to-use **Gemini**, **OpenAI**, and **DeepSeek** versions (commented out).
-To switch:
+## Agents and key files
 
-1. Paste your provider key into the optional `*_API_KEY` slots in the **Setup**
-   cell.
-2. Install its SDK from the optional section of
-   [`requirements.txt`](requirements.txt) (`google-genai` for Gemini; `openai`
-   for OpenAI/DeepSeek).
-3. Uncomment that provider's client in the first LLM cell, then in each LLM cell
-   comment out the Anthropic block and uncomment your provider's block.
+- Reasoning Agent (`agent/reasoning.py`): Runs the ReAct loop, builds hypotheses, decides which tools to call, and aggregates evidence into a probability estimate.
+- Tactics Agent (`agent/prompts/tactics_prompt.md` + related `data/tactics.py`): Performs detailed formation/style analysis when requested by the Reasoning Agent.
+- Bet Manager (`agent/bet_manager.py`): Computes stake sizes and submits orders. It enforces bankroll and risk rules and only executes when the edge (predicted probability − market probability) exceeds the configured threshold.
+- Orchestrator (`agent/orchestrator.py`): Boots the agents, wires memory and the ledger, and serialises a single run for a fixture.
+- Tool Executor (`agent/tool_executor.py`): Encapsulates API calls, caching and normalization for all external data sources.
 
-The `_extract()` / `_mi()` helpers already understand all four response shapes,
-so nothing downstream needs to change.
+These files together implement the decision-making pipeline: data acquisition, reasoning (with external tool calls), optional deep tactical checks, then staking and order execution.
 
-## Notes
+---
 
-- The notebook targets **staging** (`https://staging.stair-ai.com`) and World
-  Cup 2026 (`SPORTMONKS_SEASON_ID = 26618`).
-- It uses the Claude Haiku 4.5 model (`claude-haiku-4-5-20251001`) with extended
-  thinking enabled, so a recent `anthropic` SDK is required (see
-  [`requirements.txt`](requirements.txt)).
-- Reasoning-ledger records follow schema v0.3; `agent_id` is resolved
-  server-side from your `x-api-key` and is intentionally omitted from the wire
-  records.
+## Memory
+
+Memory is handled under `agent/memory/` and split into short-term and long-term components:
+
+- Short-term state (`stssm.py`) stores transient run-scoped state: recent observations, intermediate reasoning context and the active ReAct conversation state.
+- Long-term memory (`ltm.py`) stores aggregated historical statistics and embeddings derived from news and historical match records (used by the Tactics Agent and by off-line analyses).
+
+The orchestrator initialises memory backends and passes references into the Reasoning and Tactics Agents. Memory reads are performed frequently during the ReAct loop; writes append compact, timestamped records so the ledger and memory remain auditable.
+
+---
+
+## Tests
+
+Automated tests are available in the `tests/` directory. Run them with `pytest`. Link: [tests](tests)
+
+---
+
+## Installation (using `uv`)
+
+This project uses `uv` (https://github.com/astral-sh/uv) for environment and task management. Example workflow:
+
+```bash
+git clone https://github.com/sanidavidanagama/Stoppage-Time.git
+cd Stoppage-Time
+uv venv
+uv sync
+```
+
+The above creates a virtual environment and installs pinned dependencies.
+
+---
+
+## Environment variables
+
+Required keys (create a `.env` file or set in your environment):
+
+- `GEMINI_API_KEY` — get this from https://aistudio.google.com/
+- `ARENA_KEY` — get this from https://staging.stair-ai.com/api-keys
+
+Optional keys and notes are documented in `config.py`.
+
+---
+
+## Running
+
+Start a single run with the built-in runner. By default the repository ships with a demo fixture (Mexico vs South Africa). To run:
+
+```bash
+uv run main.py
+```
+
+To evaluate a specific fixture, pass home/away team names as arguments:
+
+```bash
+uv run main.py "Home" "Away"
+```
+
+---
+
+## API references
+
+- Stair AI Builder Guide and API reference: https://stair-ai.com/builder-guide#api-reference
+- Staging API endpoints: https://staging.stair-ai.com/api
+

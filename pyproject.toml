@@ -1,0 +1,27 @@
+[project]
+name = "stoppage-time"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "chromadb>=1.5.9",
+    "feedparser>=6.0.12",
+    "google-genai>=2.8.0",
+    "ipykernel>=7.2.0",
+    "jupyter>=1.1.1",
+    "matplotlib>=3.10.9",
+    "pandas>=3.0.3",
+    "pydantic-settings>=2.14.1",
+    "pytest>=9.0.3",
+    "python-dotenv>=1.2.2",
+    "requests>=2.34.2",
+    "scikit-learn>=1.9.0",
+    "sentence-transformers>=5.5.1",
+    "supabase>=2.31.0",
+]
+[tool.pytest.ini_options]
+pythonpath = ["."]
+markers = [
+    "live: marks tests that make real API calls (deselect with -m 'not live')",
+]
