@@ -480,6 +480,8 @@ def run(home: str, away: str) -> dict:
             fixture_name      = identity_map["fixture_name"],
             home_team         = identity_map["home"]["name"],
             away_team         = identity_map["away"]["name"],
+            home_code         = identity_map["home"]["short_code"],
+            away_code         = identity_map["away"]["short_code"],
             predicted_outcome = final_decision.get("outcome") or "none",
             agent_probability = float(final_decision.get("probability") or 0),
             confidence_level  = final_decision.get("confidence_level", "low"),

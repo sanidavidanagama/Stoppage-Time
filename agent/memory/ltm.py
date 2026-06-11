@@ -65,7 +65,9 @@ CREATE TABLE IF NOT EXISTS bets (
     -- Metadata
     tool_calls_made INTEGER DEFAULT 0,
     rationale       TEXT,
-    notes           TEXT
+    notes           TEXT,
+    home_code       TEXT DEFAULT '',
+    away_code       TEXT DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS agent_stats (
@@ -89,6 +91,11 @@ def _connect() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    for col, defn in [("home_code", "TEXT DEFAULT ''"), ("away_code", "TEXT DEFAULT ''")]:
+        try:
+            conn.execute(f"ALTER TABLE bets ADD COLUMN {col} {defn}")
+        except Exception:
+            pass
     conn.commit()
     return conn
 
@@ -123,6 +130,8 @@ def save_bet(
     pm_draw_prob:      float | None = None,
     ml_market_gap:     float | None = None,
     tool_calls_made:   int = 0,
+    home_code:         str = "",
+    away_code:         str = "",
 ) -> str:
     """
     Save a bet decision to LTM.
@@ -146,9 +155,10 @@ def save_bet(
                 predicted_outcome, agent_probability, confidence_level,
                 should_bet, bet_outcome, bet_direction,
                 bet_size_usdc, edge_pp, signals_used,
-                tool_calls_made, rationale
+                tool_calls_made, rationale,
+                home_code, away_code
             ) VALUES (
-                ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
+                ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
             )
         """, (
             bet_id, session_id, _now(),
@@ -161,6 +171,7 @@ def save_bet(
             int(should_bet), bet_outcome, bet_direction,
             bet_size_usdc, edge_pp, json.dumps(signals_used),
             tool_calls_made, rationale,
+            home_code, away_code,
         ))
 
     return bet_id
@@ -309,6 +320,54 @@ def get_ltm_context(ml_market_gap: float | None = None) -> str:
             lines.append("")
 
     return "\n".join(lines)
+
+
+def get_active_bets() -> list[dict]:
+    """Return pending bets (should_bet=1, won IS NULL) ordered by kickoff."""
+    with _connect() as conn:
+        rows = conn.execute("""
+            SELECT rowid AS _rowid, * FROM bets
+            WHERE should_bet = 1 AND won IS NULL
+            ORDER BY kickoff ASC
+        """).fetchall()
+    return [dict(row) for row in rows]
+
+
+def get_all_orders(limit: int = 50) -> list[dict]:
+    """Return all entries ordered by created_at DESC (includes no-bets)."""
+    with _connect() as conn:
+        rows = conn.execute("""
+            SELECT rowid AS _rowid, * FROM bets
+            ORDER BY created_at DESC
+            LIMIT ?
+        """, (limit,)).fetchall()
+    return [dict(row) for row in rows]
+
+
+def get_balance_map(starting_balance: float = 100.0) -> dict:
+    """
+    Compute the wallet balance immediately after each should_bet=1 bet was placed.
+    Returns dict mapping bet_id -> balance_after.
+    """
+    with _connect() as conn:
+        rows = conn.execute("""
+            SELECT id, created_at, bet_size_usdc, won, pnl
+            FROM bets
+            WHERE should_bet = 1
+            ORDER BY created_at ASC
+        """).fetchall()
+
+    balance = starting_balance
+    result: dict = {}
+    for row in rows:
+        size = row["bet_size_usdc"] or 0.0
+        balance_after = round(balance - size, 2)
+        result[row["id"]] = balance_after
+        if row["won"] is not None:
+            balance = round(balance_after + size + (row["pnl"] or 0.0), 2)
+        else:
+            balance = balance_after
+    return result
 
 
 def get_bankroll_summary(starting_balance: float = 100.0) -> dict:
