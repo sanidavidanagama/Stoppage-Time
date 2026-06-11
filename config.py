@@ -22,9 +22,9 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str
 
     # --- Arena ---
-    ARENA: str = "https://staging.stair-ai.com"
-    AGENT_ID: str = "54555fe7-4adc-4bcd-ad1f-1307a388d5ef"
-
+    ARENA: str = "https://stair-ai.com"
+    AGENT_ID: str = "18161beb-b5f5-464d-ad1b-8ae2d9323fbc"
+    
     @property
     def SPORTMONKS_PROXY(self) -> str:
         return f"{self.ARENA}/api/v1/data/proxy/sportmonks/v3/football"
