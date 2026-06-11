@@ -88,6 +88,9 @@ __pypackages__/
 .env
 .env.*
 
+# logs
+logs/
+
 # VS Code
 .vscode/
 
