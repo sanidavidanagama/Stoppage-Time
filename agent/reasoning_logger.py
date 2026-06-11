@@ -35,6 +35,7 @@ def _sanitize_kickoff(kickoff: str | None) -> str:
 class FixtureLogger:
     base_dir: Path
     reasoning_count: int = 0
+    tactics_count: int = 0
     bet_written: bool = False
     metadata: dict = field(default_factory=dict)
 
@@ -42,6 +43,12 @@ class FixtureLogger:
         self.reasoning_count += 1
         prompt_path = self.base_dir / f"reasoning_prompt_{self.reasoning_count}.md"
         response_path = self.base_dir / f"reasoning_response_{self.reasoning_count}.txt"
+        return prompt_path, response_path
+
+    def next_tactics_paths(self) -> tuple[Path, Path]:
+        self.tactics_count += 1
+        prompt_path = self.base_dir / f"tactics_prompt_{self.tactics_count}.md"
+        response_path = self.base_dir / f"tactics_response_{self.tactics_count}.txt"
         return prompt_path, response_path
 
     def bet_paths(self) -> tuple[Path, Path]:
@@ -107,6 +114,17 @@ def log_bet(prompt_text: str, response_text: str) -> tuple[Path, Path] | None:
         logger.bet_written = True
     else:
         prompt_path.write_text(prompt_text, encoding="utf-8")
+    response_path.write_text(response_text, encoding="utf-8")
+    return prompt_path, response_path
+
+
+def log_tactics(prompt_text: str, response_text: str) -> tuple[Path, Path] | None:
+    logger = get_active_logger()
+    if logger is None:
+        return None
+
+    prompt_path, response_path = logger.next_tactics_paths()
+    prompt_path.write_text(prompt_text, encoding="utf-8")
     response_path.write_text(response_text, encoding="utf-8")
     return prompt_path, response_path
 
