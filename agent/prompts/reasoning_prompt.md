@@ -11,6 +11,25 @@ Stage: {stage} — Round {round}
 ### ML predictions (Sportmonks)
 {sportmonks_predictions}
 
+## ML model reliability (our backtest on 2022 WC — 65 matches)
+
+We backtested the Sportmonks ML models against actual 2022 World Cup results:
+
+| Outcome | Accuracy | Reliability |
+|---------|----------|-------------|
+| Home    | 72.4%    | HIGH — trust this signal |
+| Away    | 40.0%    | LOW — treat with scepticism |
+| Draw    | 25.0%    | VERY LOW — almost random, ignore |
+
+**What this means for your reasoning:**
+- If ML models strongly favour home → this is a reliable signal, weight it heavily
+- If ML models favour away → this is unreliable, weight it lightly
+- If ML models favour draw → ignore entirely
+- The ML models systematically underestimate home teams and overestimate away teams
+- When ML says away has >30% chance, the market is likely more correct than the model
+
+**Apply this calibration every time you read ML predictions.**
+
 ### Bookmaker odds
 {sportmonks_odds}
 
