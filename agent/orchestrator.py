@@ -35,6 +35,7 @@ from agent.memory.stssm  import new_session, STSSM
 from agent.memory.ltm    import save_bet, get_bankroll_summary
 from agent.reasoning     import call as reasoning_call
 from agent.bet_manager   import decide as bet_manager_decide
+from agent.reasoning_logger import start_fixture_log, end_fixture_log
 from agent.tool_executor import execute as tool_execute
 
 from ledger.logger import (
@@ -66,6 +67,13 @@ def run(home: str, away: str) -> dict:
         stm.kickoff      = identity_map["kickoff"]
 
         fixture_id_str = str(identity_map["fixture_id"])
+
+        start_fixture_log(
+            home_code   = identity_map["home"]["short_code"],
+            away_code   = identity_map["away"]["short_code"],
+            kickoff     = stm.kickoff,
+            fixture_name = identity_map["fixture_name"],
+        )
 
         print(f"  Fixture  : {identity_map['fixture_name']}")
         print(f"  Kickoff  : {identity_map['kickoff']}")
@@ -540,6 +548,8 @@ def run(home: str, away: str) -> dict:
             "error":      str(e),
             "status":     "error",
         }
+    finally:
+        end_fixture_log()
 
 
 # --- Helpers -----------------------------------------------------------------

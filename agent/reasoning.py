@@ -19,6 +19,7 @@ from google.genai import types
 from config import settings
 from agent.memory.stssm import STSSM
 from agent.memory.ltm import get_ltm_context
+from agent.reasoning_logger import log_reasoning
 
 
 # --- Gemini client -----------------------------------------------------------
@@ -320,6 +321,11 @@ def call(stm: STSSM) -> dict:
         raw      = _extract_text(response)
         thinking = _extract_thinking(response)
 
+        log_reasoning(
+            prompt,
+            _format_response_snapshot(thinking, raw),
+        )
+
         print(f"    [DEBUG] Raw response preview: {raw[:200]}")
 
         result = _parse_response(raw)
@@ -345,6 +351,7 @@ def call(stm: STSSM) -> dict:
         return result
 
     except Exception as e:
+        log_reasoning(prompt, f"EXCEPTION\n\n{e}")
         return {
             "type":   "error",
             "reason": str(e),
@@ -357,3 +364,12 @@ def get_assembled_prompt(stm: STSSM) -> str:
     Useful for debugging and testing.
     """
     return _assemble_prompt(stm)
+
+
+def _format_response_snapshot(thinking: str, raw: str) -> str:
+    return (
+        "# Thinking\n\n"
+        + (thinking or "")
+        + "\n\n# Raw Response\n\n"
+        + (raw or "")
+    )
