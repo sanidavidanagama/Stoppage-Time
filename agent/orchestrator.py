@@ -25,6 +25,7 @@ import requests
 from config import settings
 from data.identity   import resolve_identity
 from data.sportmonks import get_all as sm_get_all
+from data.tactics    import analyse as tactics_analyse
 from data.polymarket import get_all as pm_get_all
 from data.supabase   import get_all as sb_get_all
 from data.news.fetcher  import fetch_news
@@ -35,6 +36,7 @@ from agent.memory.stssm  import new_session, STSSM
 from agent.memory.ltm    import save_bet, get_bankroll_summary
 from agent.reasoning     import call as reasoning_call
 from agent.bet_manager   import decide as bet_manager_decide
+from agent.reasoning_logger import start_fixture_log, end_fixture_log
 from agent.tool_executor import execute as tool_execute
 
 from ledger.logger import (
@@ -66,6 +68,13 @@ def run(home: str, away: str) -> dict:
         stm.kickoff      = identity_map["kickoff"]
 
         fixture_id_str = str(identity_map["fixture_id"])
+
+        start_fixture_log(
+            home_code   = identity_map["home"]["short_code"],
+            away_code   = identity_map["away"]["short_code"],
+            kickoff     = stm.kickoff,
+            fixture_name = identity_map["fixture_name"],
+        )
 
         print(f"  Fixture  : {identity_map['fixture_name']}")
         print(f"  Kickoff  : {identity_map['kickoff']}")
@@ -218,6 +227,35 @@ def run(home: str, away: str) -> dict:
         records.append(rec_wx)
         print(f"  Weather   : {wx.get('summary', 'unavailable')}")
 
+        # Tactics (lineups published ~1hr before kickoff — always run upfront)
+        print("  Tactics   : running...")
+        try:
+            stm.tactics = tactics_analyse(
+                home            = identity_map["home"]["name"],
+                away            = identity_map["away"]["name"],
+                sportmonks_data = stm.sportmonks,
+                supabase_data   = stm.supabase,
+                weather_data    = wx,
+                kickoff_time    = stm.kickoff,
+            )
+        except Exception as e:
+            stm.tactics = {"_available": False, "_error": str(e)}
+
+        rec_tactics = other(
+            session_id   = stm.session_id,
+            label        = "tactics_prefetch",
+            data         = {
+                "advantage":  stm.tactics.get("overall_advantage"),
+                "strength":   stm.tactics.get("advantage_strength"),
+                "confidence": stm.tactics.get("confidence"),
+                "verdict":    (stm.tactics.get("analyst_verdict") or "")[:200],
+                "available":  stm.tactics.get("_available", False),
+            },
+            upstream_ids = [rec_plan["record_id"]],
+        )
+        records.append(rec_tactics)
+        print(f"  Tactics   : {(stm.tactics.get('analyst_verdict') or 'unavailable')[:80]}")
+
         # ── Step 4: ReAct loop ────────────────────────────────────────────────
         stm.status = "reasoning"
         print(f"\nStep 3: ReAct loop (max {settings.MAX_TOOL_ROUNDS} rounds)...")
@@ -233,7 +271,7 @@ def run(home: str, away: str) -> dict:
             stm.add_gemini_message("assistant", json.dumps(response, default=str))
 
             upstream = [r["record_id"] for r in
-                        [rec_sm, rec_pm, rec_sb, rec_news, rec_wx]
+                        [rec_sm, rec_pm, rec_sb, rec_news, rec_wx, rec_tactics]
                         if r is not None]
 
             clean_response = {k: v for k, v in response.items()
@@ -472,6 +510,8 @@ def run(home: str, away: str) -> dict:
             fixture_name      = identity_map["fixture_name"],
             home_team         = identity_map["home"]["name"],
             away_team         = identity_map["away"]["name"],
+            home_code         = identity_map["home"]["short_code"],
+            away_code         = identity_map["away"]["short_code"],
             predicted_outcome = final_decision.get("outcome") or "none",
             agent_probability = float(final_decision.get("probability") or 0),
             confidence_level  = final_decision.get("confidence_level", "low"),
@@ -540,6 +580,8 @@ def run(home: str, away: str) -> dict:
             "error":      str(e),
             "status":     "error",
         }
+    finally:
+        end_fixture_log()
 
 
 # --- Helpers -----------------------------------------------------------------

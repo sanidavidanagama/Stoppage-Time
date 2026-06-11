@@ -20,6 +20,7 @@ from google import genai
 from google.genai import types
 from config import settings
 from agent.memory.ltm import get_bankroll_summary, get_ltm_context
+from agent.reasoning_logger import log_bet
 from pathlib import Path
 
 
@@ -74,6 +75,7 @@ def decide(
         "current_balance":     bankroll["current_balance"],
         "recent_performance":  ltm,
     }
+    prompt_snapshot = _build_prompt_snapshot(payload)
 
     try:
         client   = _get_client()
@@ -92,6 +94,7 @@ def decide(
 
         raw      = _extract_text(response)
         thinking = _extract_thinking(response)
+        log_bet(prompt_snapshot, _format_response_snapshot(thinking, raw))
         result   = _parse_json(raw)
 
         if result is None:
@@ -130,6 +133,7 @@ def decide(
         return result
 
     except Exception as e:
+        log_bet(prompt_snapshot, f"EXCEPTION\n\n{e}")
         return _skip(str(e))
 
 
@@ -149,6 +153,25 @@ def _extract_thinking(response) -> str:
         if getattr(part, "thought", False):
             parts.append(getattr(part, "text", "") or "")
     return "\n".join(parts)
+
+
+def _build_prompt_snapshot(payload: dict) -> str:
+    return (
+        "# System Prompt\n\n"
+        + _load_bet_manager_prompt()
+        + "\n\n# User Payload\n\n```json\n"
+        + json.dumps(payload, indent=2, default=str)
+        + "\n```\n"
+    )
+
+
+def _format_response_snapshot(thinking: str, raw: str) -> str:
+    return (
+        "# Thinking\n\n"
+        + (thinking or "")
+        + "\n\n# Raw Response\n\n"
+        + (raw or "")
+    )
 
 
 def _parse_json(raw: str) -> dict | None:

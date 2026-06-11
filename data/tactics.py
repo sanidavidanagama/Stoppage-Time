@@ -16,6 +16,7 @@ from google import genai
 from google.genai import types
 from config import settings
 from pathlib import Path
+from agent.reasoning_logger import log_tactics
 
 
 # --- Gemini client -----------------------------------------------------------
@@ -82,6 +83,7 @@ def analyse(
 
         raw      = _extract_text(response)
         thinking = _extract_thinking(response)
+        _log_tactics_exchange(payload, thinking, raw)
         result   = _parse_json(raw)
 
         if result is None:
@@ -92,6 +94,7 @@ def analyse(
         return result
 
     except Exception as e:
+        _log_tactics_exchange(payload, "", f"EXCEPTION\n\n{e}")
         return _error(str(e))
 
 
@@ -203,6 +206,35 @@ def _extract_thinking(response) -> str:
         if getattr(part, "thought", False):
             parts.append(getattr(part, "text", "") or "")
     return "\n".join(parts)
+
+
+def _build_prompt_snapshot(payload: dict) -> str:
+    return (
+        "# System Prompt\n\n"
+        + _load_tactics_prompt()
+        + "\n\n# User Payload\n\n```json\n"
+        + json.dumps(payload, indent=2, default=str)
+        + "\n```\n"
+    )
+
+
+def _format_response_snapshot(thinking: str, raw: str) -> str:
+    return (
+        "# Thinking\n\n"
+        + (thinking or "")
+        + "\n\n# Raw Response\n\n"
+        + (raw or "")
+    )
+
+
+def _log_tactics_exchange(payload: dict, thinking: str, raw: str) -> None:
+    try:
+        log_tactics(
+            _build_prompt_snapshot(payload),
+            _format_response_snapshot(thinking, raw),
+        )
+    except Exception:
+        pass
 
 def _parse_json(raw: str) -> dict | None:
     # strip markdown code fences if present
