@@ -40,6 +40,9 @@ We backtested the Sportmonks ML models against actual 2022 World Cup results:
 {supabase_checkpoint}
 {supabase_priors}
 
+### Tactical analysis (pre-computed)
+{tactics_analysis}
+
 ### News
 {news_summary}
 

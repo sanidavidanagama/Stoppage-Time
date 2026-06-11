@@ -25,6 +25,7 @@ import requests
 from config import settings
 from data.identity   import resolve_identity
 from data.sportmonks import get_all as sm_get_all
+from data.tactics    import analyse as tactics_analyse
 from data.polymarket import get_all as pm_get_all
 from data.supabase   import get_all as sb_get_all
 from data.news.fetcher  import fetch_news
@@ -226,6 +227,35 @@ def run(home: str, away: str) -> dict:
         records.append(rec_wx)
         print(f"  Weather   : {wx.get('summary', 'unavailable')}")
 
+        # Tactics (lineups published ~1hr before kickoff — always run upfront)
+        print("  Tactics   : running...")
+        try:
+            stm.tactics = tactics_analyse(
+                home            = identity_map["home"]["name"],
+                away            = identity_map["away"]["name"],
+                sportmonks_data = stm.sportmonks,
+                supabase_data   = stm.supabase,
+                weather_data    = wx,
+                kickoff_time    = stm.kickoff,
+            )
+        except Exception as e:
+            stm.tactics = {"_available": False, "_error": str(e)}
+
+        rec_tactics = other(
+            session_id   = stm.session_id,
+            label        = "tactics_prefetch",
+            data         = {
+                "advantage":  stm.tactics.get("overall_advantage"),
+                "strength":   stm.tactics.get("advantage_strength"),
+                "confidence": stm.tactics.get("confidence"),
+                "verdict":    (stm.tactics.get("analyst_verdict") or "")[:200],
+                "available":  stm.tactics.get("_available", False),
+            },
+            upstream_ids = [rec_plan["record_id"]],
+        )
+        records.append(rec_tactics)
+        print(f"  Tactics   : {(stm.tactics.get('analyst_verdict') or 'unavailable')[:80]}")
+
         # ── Step 4: ReAct loop ────────────────────────────────────────────────
         stm.status = "reasoning"
         print(f"\nStep 3: ReAct loop (max {settings.MAX_TOOL_ROUNDS} rounds)...")
@@ -241,7 +271,7 @@ def run(home: str, away: str) -> dict:
             stm.add_gemini_message("assistant", json.dumps(response, default=str))
 
             upstream = [r["record_id"] for r in
-                        [rec_sm, rec_pm, rec_sb, rec_news, rec_wx]
+                        [rec_sm, rec_pm, rec_sb, rec_news, rec_wx, rec_tactics]
                         if r is not None]
 
             clean_response = {k: v for k, v in response.items()

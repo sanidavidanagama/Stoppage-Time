@@ -50,6 +50,7 @@ class STSSM:
     polymarket:   dict      = field(default_factory=dict)
     supabase:     dict      = field(default_factory=dict)
     news:         list      = field(default_factory=list)
+    tactics:      dict      = field(default_factory=dict)
 
     # --- ReAct loop state ----------------------------------------------------
     current_round:  int          = 0
@@ -114,6 +115,7 @@ class STSSM:
             f"  Supabase checkpoint    : {'yes' if sb.get('checkpoint_stats', {}).get('available') else 'no'}",
             f"  Supabase priors        : {'yes' if sb.get('country_style', {}).get('available') else 'no'}",
             f"  News articles          : {len(self.news)} articles",
+            f"  Tactical analysis      : {'yes' if self.tactics.get('_available') else 'no'}",
             f"  Home has supabase      : {im.get('home', {}).get('has_supabase', False)}",
             f"  Away has supabase      : {im.get('away', {}).get('has_supabase', False)}",
         ]

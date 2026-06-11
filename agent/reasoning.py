@@ -186,6 +186,32 @@ def _format_supabase(stm: STSSM) -> str:
     return "\n".join(lines) if lines else "No Supabase data available."
 
 
+def _format_tactics(stm: STSSM) -> str:
+    t = stm.tactics
+    if not t or not t.get("_available"):
+        reason = t.get("_error", "not run") if t else "not run"
+        return f"Tactical analysis: unavailable ({reason})"
+
+    lines = [
+        f"Overall advantage : {t.get('overall_advantage')} ({t.get('advantage_strength')})",
+        f"Confidence        : {t.get('confidence')} — {t.get('confidence_reason', '')}",
+        f"Analyst verdict   : {t.get('analyst_verdict', '')}",
+    ]
+
+    battlegrounds = t.get("key_battlegrounds")
+    if battlegrounds:
+        if isinstance(battlegrounds, list):
+            lines.append(f"Key battlegrounds : {', '.join(str(b) for b in battlegrounds)}")
+        else:
+            lines.append(f"Key battlegrounds : {battlegrounds}")
+
+    gaps = t.get("data_gaps")
+    if gaps:
+        lines.append(f"Data gaps         : {gaps}")
+
+    return "\n".join(lines)
+
+
 def _format_news(stm: STSSM) -> str:
     if not stm.news:
         return "No recent news found."
@@ -229,6 +255,7 @@ def _assemble_prompt(stm: STSSM, ml_market_gap: float | None = None) -> str:
         "{polymarket_prices}":       _format_polymarket(stm),
         "{supabase_checkpoint}":     _format_supabase(stm),
         "{supabase_priors}":         _format_supabase(stm),
+        "{tactics_analysis}":        _format_tactics(stm),
         "{news_summary}":            _format_news(stm),
         "{ltm_context}":             get_ltm_context(ml_market_gap),
         "{tool_history}":            stm.tool_history_summary(),
