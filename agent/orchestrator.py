@@ -406,7 +406,7 @@ def run(home: str, away: str) -> dict:
                 tokens_in          = None,
                 tokens_out         = None,
                 internal_reasoning = None,   # remove — too large
-                upstream_ids       = [rec_predict["record_id"]],
+                upstream_ids       = [rec_think["record_id"]] if rec_think else [],
                 inputs             = [{"input_payload": json.dumps({
                     "prediction":  final_decision,
                     "live_prices": live_prices,
@@ -472,7 +472,7 @@ def run(home: str, away: str) -> dict:
                     "reason": final_decision.get("rationale", "")[:200],
                     "should_bet": False,
                 },
-                upstream_ids = [rec_predict["record_id"]] if final_decision.get("outcome") else [],
+                upstream_ids = [rec_think["record_id"]] if rec_think else [],
             )
             records.append(rec_skip)
 
@@ -495,7 +495,7 @@ def run(home: str, away: str) -> dict:
                 f"Bet placed: {bool(bet_decision and bet_decision.get('should_place_order'))}. "
                 f"Rationale: {final_decision.get('rationale', '')[:200]}"
             )[:1000],
-            upstream_ids  = [rec_predict["record_id"]] if final_decision.get("outcome") else [],
+            upstream_ids  = [rec_think["record_id"]] if rec_think else [],
         )
         records.append(rec_reflect)
 
