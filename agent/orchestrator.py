@@ -376,7 +376,7 @@ def run(home: str, away: str) -> dict:
             execution_status = "confirmed",
             upstream_ids     = [rec_think["record_id"]] if rec_think else [],
         )
-        if final_decision.get("outcome") in ["home", "away"]:
+        if final_decision.get("outcome") in ["home", "away", "draw"]:
             records.append(rec_predict)
         stm.prediction = final_decision
 

@@ -71,12 +71,13 @@ You have {rounds_remaining} tool call(s) remaining.
 ## Decision rules
 
 1. Form your own probability estimate independently from the data above.
-2. Calculate edge for BOTH outcomes:
+2. Calculate edge for ALL three outcomes:
    - home_edge = your_home_prob - polymarket_home_mid
    - away_edge = your_away_prob - polymarket_away_mid
+   - draw_edge = your_draw_prob - polymarket_draw_mid
 3. Bet on the outcome with the largest |edge|.
 4. Set should_bet=true if |edge| > 0.05 (5pp) AND confidence is medium or high.
-5. Only predict "home" or "away" — no draw bets.
+5. Draw bets are allowed but must clear a higher bar: only predict "draw" if draw_edge is clearly the largest edge AND you have strong positive reasons to believe in a draw (evenly-matched sides, defensive styles, tournament context). Do NOT default to draw out of uncertainty — if you are unsure, pick the more decisive outcome.
 6. Be transparent about your reasoning — explain exactly which signals drove your decision.
 
 ## Output format
@@ -90,7 +91,7 @@ Make a final decision:
 ```json
 {
   "type": "final_decision",
-  "outcome": "home or away",
+  "outcome": "home or away or draw",
   "probability": 0.00,
   "should_bet": true,
   "confidence_level": "high or medium or low",
