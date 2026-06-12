@@ -126,6 +126,32 @@ def _build_payload(
         payload["away_formation"]    = away_lineup.get("formation")
         payload["lineups_available"] = lineups.get("available", False)
 
+        # position_id legend: 24=GK  25=DEF  26=MID  27=FWD
+        if home_lineup.get("starters"):
+            payload["home_starters"] = [
+                {
+                    "name":        p["player_name"],
+                    "jersey":      p["jersey_number"],
+                    "position_id": p["position_id"],
+                }
+                for p in sorted(
+                    home_lineup["starters"],
+                    key=lambda x: x.get("formation_position") or 99,
+                )
+            ]
+        if away_lineup.get("starters"):
+            payload["away_starters"] = [
+                {
+                    "name":        p["player_name"],
+                    "jersey":      p["jersey_number"],
+                    "position_id": p["position_id"],
+                }
+                for p in sorted(
+                    away_lineup["starters"],
+                    key=lambda x: x.get("formation_position") or 99,
+                )
+            ]
+
     # --- supabase: PPDA, defensive line, playing style -----------------------
     if supabase_data:
         ck    = supabase_data.get("checkpoint_stats", {})
