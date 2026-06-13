@@ -44,6 +44,12 @@ class Settings(BaseSettings):
     # --- Gemini ---
     GEMINI_MODEL: str = "gemini-2.5-flash"
 
+    # --- Superbase (LTM and Ledger) ---
+    ST_SUPABASE_URL:              str = ""
+    ST_SUPABASE_PUBLISHABLE_KEY:  str = ""
+    ST_SUPABASE_SECRET_KEY:       str = ""
+
+
     # --- Tournament ---
     SEASON_ID: int = 26618
 
