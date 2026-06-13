@@ -57,6 +57,7 @@ class Settings(BaseSettings):
     LEDGER_SCHEMA_VERSION: str = "0.3"
 
     # --- Agent behaviour ---
+    DEBUG:           bool  = True   # set to False for production
     MAX_TOOL_ROUNDS: int   = 3
     MAX_BET_SIZE:    float = 5.0
     MIN_EDGE_PP:     float = 5.0

@@ -55,6 +55,8 @@ def run(home: str, away: str) -> dict:
     print(f"\n{'='*55}")
     print(f"Stoppage Time — {home} vs {away}")
     print(f"{'='*55}\n")
+    if settings.DEBUG:
+        print("=== DEBUG MODE ACTIVE — no orders, ledger or bets will be saved ===\n")
 
     try:
         # ── Step 1: Identity resolution ──────────────────────────────────────
@@ -425,37 +427,40 @@ def run(home: str, away: str) -> dict:
 
             # ── Step 7: Place order ───────────────────────────────────────────
             if bet_decision.get("should_place_order"):
-                print(f"\nStep 5: Placing order...")
-                order_result = _place_order(
-                    fixture_id  = identity_map["fixture_id"],
-                    team_code   = bet_decision["team_code"],
-                    size_usdc   = bet_decision["size_usdc"],
-                    limit_price = bet_decision["limit_price"],
-                )
-                stm.order_response = order_result
+                if settings.DEBUG:
+                    print(f"\n[DEBUG MODE] skipping order placement")
+                else:
+                    print(f"\nStep 5: Placing order...")
+                    order_result = _place_order(
+                        fixture_id  = identity_map["fixture_id"],
+                        team_code   = bet_decision["team_code"],
+                        size_usdc   = bet_decision["size_usdc"],
+                        limit_price = bet_decision["limit_price"],
+                    )
+                    stm.order_response = order_result
 
-                rec_order = acting(
-                    session_id       = stm.session_id,
-                    action_type      = "open_order",
-                    action_summary   = (
-                        f"Open long ${bet_decision['size_usdc']:.2f} on "
-                        f"{bet_decision['team_code']} "
-                        f"@ ≤{bet_decision['limit_price']}"
-                    ),
-                    parameters       = {
-                        "fixture_id":  fixture_id_str,
-                        "team_code":   bet_decision["team_code"],
-                        "usd_size":    str(bet_decision["size_usdc"]),
-                        "limit_price": bet_decision["limit_price"],
-                    },
-                    execution_status = "pending" if order_result.get("status") not in ["error", "rejected"] else "failed",
-                    execution_id     = order_result.get("order_id"),
-                    upstream_ids     = [rec_bet_think["record_id"]],
-                )
-                records.append(rec_order)
-                print(f"  Order status: {order_result.get('status', 'unknown')}")
-                if order_result.get("reason"):
-                    print(f"  Order reason : {order_result.get('reason')}")
+                    rec_order = acting(
+                        session_id       = stm.session_id,
+                        action_type      = "open_order",
+                        action_summary   = (
+                            f"Open long ${bet_decision['size_usdc']:.2f} on "
+                            f"{bet_decision['team_code']} "
+                            f"@ ≤{bet_decision['limit_price']}"
+                        ),
+                        parameters       = {
+                            "fixture_id":  fixture_id_str,
+                            "team_code":   bet_decision["team_code"],
+                            "usd_size":    str(bet_decision["size_usdc"]),
+                            "limit_price": bet_decision["limit_price"],
+                        },
+                        execution_status = "pending" if order_result.get("status") not in ["error", "rejected"] else "failed",
+                        execution_id     = order_result.get("order_id"),
+                        upstream_ids     = [rec_bet_think["record_id"]],
+                    )
+                    records.append(rec_order)
+                    print(f"  Order status: {order_result.get('status', 'unknown')}")
+                    if order_result.get("reason"):
+                        print(f"  Order reason : {order_result.get('reason')}")
         else:
             print(f"\nStep 4: Agent decided not to bet.")
             print(f"  Reason: {final_decision.get('rationale', '')[:100]}")
@@ -495,56 +500,64 @@ def run(home: str, away: str) -> dict:
         records.append(rec_reflect)
 
         # ── Step 9: Save to LTM ───────────────────────────────────────────────
-        print(f"\nStep 6: Saving to LTM...")
         pm_prices = stm.polymarket.get("live_prices", {})
         ml_cons   = stm.sportmonks.get("predictions", {}).get("consensus", {})
         bk_cons   = stm.sportmonks.get("odds", {}).get("consensus", {})
 
-        bet_id = save_bet(
-            session_id        = stm.session_id,
-            fixture_name      = identity_map["fixture_name"],
-            home_team         = identity_map["home"]["name"],
-            away_team         = identity_map["away"]["name"],
-            home_code         = identity_map["home"]["short_code"],
-            away_code         = identity_map["away"]["short_code"],
-            predicted_outcome = final_decision.get("outcome") or "none",
-            agent_probability = float(final_decision.get("probability") or 0),
-            confidence_level  = final_decision.get("confidence_level", "low"),
-            should_bet        = bool(final_decision.get("should_bet")),
-            bet_outcome       = bet_decision.get("outcome") if bet_decision else None,
-            bet_direction     = "long" if bet_decision else None,
-            bet_size_usdc     = bet_decision.get("size_usdc") if bet_decision else None,
-            edge_pp           = (bet_decision.get("edge_pp") or _compute_gap(final_decision, pm_prices)) if bet_decision else _compute_gap(final_decision, pm_prices),
-            signals_used      = final_decision.get("signals_used", []),
-            rationale         = final_decision.get("rationale", ""),
-            kickoff           = identity_map["kickoff"],
-            stage             = identity_map["stage"],
-            ml_home_prob      = (ml_cons.get("home") or 0) / 100 if ml_cons else None,
-            ml_draw_prob      = (ml_cons.get("draw") or 0) / 100 if ml_cons else None,
-            ml_away_prob      = (ml_cons.get("away") or 0) / 100 if ml_cons else None,
-            bk_home_prob      = bk_cons.get("home") if bk_cons else None,
-            bk_draw_prob      = bk_cons.get("draw") if bk_cons else None,
-            bk_away_prob      = bk_cons.get("away") if bk_cons else None,
-            pm_home_prob      = pm_prices.get("home"),
-            pm_draw_prob      = pm_prices.get("draw"),
-            pm_away_prob      = pm_prices.get("away"),
-            ml_market_gap     = _compute_gap(final_decision, pm_prices),
-            tool_calls_made   = len(stm.tool_history),
-        )
-        print(f"  Saved bet_id: {bet_id[:8]}...")
+        bet_id = None
+        if settings.DEBUG:
+            print(f"\n[DEBUG MODE] skipping save_bet")
+        else:
+            print(f"\nStep 6: Saving to LTM...")
+            bet_id = save_bet(
+                session_id        = stm.session_id,
+                fixture_name      = identity_map["fixture_name"],
+                home_team         = identity_map["home"]["name"],
+                away_team         = identity_map["away"]["name"],
+                home_code         = identity_map["home"]["short_code"],
+                away_code         = identity_map["away"]["short_code"],
+                predicted_outcome = final_decision.get("outcome") or "none",
+                agent_probability = float(final_decision.get("probability") or 0),
+                confidence_level  = final_decision.get("confidence_level", "low"),
+                should_bet        = bool(final_decision.get("should_bet")),
+                bet_outcome       = bet_decision.get("outcome") if bet_decision else None,
+                bet_direction     = "long" if bet_decision else None,
+                bet_size_usdc     = bet_decision.get("size_usdc") if bet_decision else None,
+                edge_pp           = (bet_decision.get("edge_pp") or _compute_gap(final_decision, pm_prices)) if bet_decision else _compute_gap(final_decision, pm_prices),
+                signals_used      = final_decision.get("signals_used", []),
+                rationale         = final_decision.get("rationale", ""),
+                kickoff           = identity_map["kickoff"],
+                stage             = identity_map["stage"],
+                ml_home_prob      = (ml_cons.get("home") or 0) / 100 if ml_cons else None,
+                ml_draw_prob      = (ml_cons.get("draw") or 0) / 100 if ml_cons else None,
+                ml_away_prob      = (ml_cons.get("away") or 0) / 100 if ml_cons else None,
+                bk_home_prob      = bk_cons.get("home") if bk_cons else None,
+                bk_draw_prob      = bk_cons.get("draw") if bk_cons else None,
+                bk_away_prob      = bk_cons.get("away") if bk_cons else None,
+                pm_home_prob      = pm_prices.get("home"),
+                pm_draw_prob      = pm_prices.get("draw"),
+                pm_away_prob      = pm_prices.get("away"),
+                ml_market_gap     = _compute_gap(final_decision, pm_prices),
+                tool_calls_made   = len(stm.tool_history),
+            )
+            print(f"  Saved bet_id: {bet_id[:8]}...")
 
         # ── Step 10: Submit to Arena ledger ───────────────────────────────────
-        print(f"\nStep 7: Submitting {len(records)} records to ledger...")
-        ledger_result = submit(
-            records,
-            fixture_id=fixture_id_str,
-        )
-        print(f"  Success : {ledger_result['success']}")
-        print(f"  Stored  : {ledger_result['stored']}")
-        if ledger_result["errors"]:
-            print(f"  Errors  : {len(ledger_result['errors'])} records failed")
-            for e in ledger_result["errors"]:
-                print(f"    [{e.get('index')}] {e.get('message','')[:80]}")
+        ledger_result = {"success": True, "stored": 0, "errors": []}
+        if settings.DEBUG:
+            print(f"\n[DEBUG MODE] skipping ledger submit ({len(records)} records)")
+        else:
+            print(f"\nStep 7: Submitting {len(records)} records to ledger...")
+            ledger_result = submit(
+                records,
+                fixture_id=fixture_id_str,
+            )
+            print(f"  Success : {ledger_result['success']}")
+            print(f"  Stored  : {ledger_result['stored']}")
+            if ledger_result["errors"]:
+                print(f"  Errors  : {len(ledger_result['errors'])} records failed")
+                for e in ledger_result["errors"]:
+                    print(f"    [{e.get('index')}] {e.get('message','')[:80]}")
 
         stm.status = "done"
         print(f"\n{'='*55}")
