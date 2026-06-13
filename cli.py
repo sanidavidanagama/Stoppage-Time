@@ -30,11 +30,11 @@ def _fmt_time(kickoff: str | None) -> str:
         return str(kickoff)[:16]
 
 
-def _match_code(rowid: int) -> str:
-    return f"M{rowid:03d}"
+def _match_code(idx: int) -> str:
+    return f"M{idx:03d}"
 
 
-def _rowid_from_code(code: str) -> int | None:
+def _idx_from_code(code: str) -> int | None:
     code = code.strip().upper()
     if code.startswith("M"):
         try:
@@ -52,8 +52,8 @@ def _show_active_bets(balance_map: dict | None = None) -> list[dict]:
     if not bets:
         print("  (no active bets)")
     else:
-        for bet in bets:
-            code = _match_code(bet["_rowid"])
+        for idx, bet in enumerate(bets, 1):
+            code = _match_code(idx)
             home = bet.get("home_code") or bet["home_team"][:3].upper()
             away = bet.get("away_code") or bet["away_team"][:3].upper()
             time = _fmt_time(bet.get("kickoff"))
@@ -111,15 +111,12 @@ def _update_order_status() -> None:
         print("Cancelled.\n")
         return
 
-    rowid = _rowid_from_code(code)
-    if rowid is None:
+    idx = _idx_from_code(code)
+    if idx is None or idx < 1 or idx > len(bets):
         print("Invalid match code.\n")
         return
 
-    bet = next((b for b in bets if b["_rowid"] == rowid), None)
-    if bet is None:
-        print(f"Match code {code.upper()} not found in active bets.\n")
-        return
+    bet = bets[idx - 1]
 
     outcome = input("Enter actual outcome (home/draw/away): ").strip().lower()
     if outcome not in ("home", "draw", "away"):
@@ -145,8 +142,8 @@ def _view_past_orders() -> None:
         return
 
     print()
-    for order in orders:
-        code = _match_code(order["_rowid"])
+    for idx, order in enumerate(orders, 1):
+        code = _match_code(idx)
         home = order.get("home_code") or order["home_team"][:3].upper()
         away = order.get("away_code") or order["away_team"][:3].upper()
         time = _fmt_time(order.get("kickoff"))

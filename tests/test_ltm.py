@@ -6,8 +6,6 @@ Run with: pytest tests/test_ltm.py -v
 """
 
 import pytest
-import os
-from pathlib import Path
 import agent.memory.ltm as ltm_module
 from agent.memory.ltm import (
     save_bet,
@@ -20,13 +18,96 @@ from agent.memory.ltm import (
 )
 
 
+# --- In-memory Supabase mock -------------------------------------------------
+
+class _MockResult:
+    def __init__(self, data):
+        self.data = data
+
+
+class _MockQueryBuilder:
+    def __init__(self, store, owner):
+        self._store = store
+        self._owner = owner  # _MockSupabase, for the insert counter
+        self._filters = []      # list of ("eq", col, val)
+        self._order_col = None
+        self._order_desc = False
+        self._limit_n = None
+        self._insert_data = None
+        self._update_data = None
+
+    def select(self, cols="*"):
+        return self
+
+    def insert(self, data):
+        self._insert_data = data
+        return self
+
+    def update(self, data):
+        self._update_data = data
+        return self
+
+    def eq(self, col, val):
+        self._filters.append(("eq", col, val))
+        return self
+
+    def order(self, col, desc=False):
+        self._order_col = col
+        self._order_desc = desc
+        return self
+
+    def limit(self, n):
+        self._limit_n = n
+        return self
+
+    def _matches(self, row):
+        for ftype, col, val in self._filters:
+            if ftype == "eq" and row.get(col) != val:
+                return False
+        return True
+
+    def execute(self):
+        if self._insert_data is not None:
+            row = dict(self._insert_data)
+            row["_seq"] = self._owner._seq
+            self._owner._seq += 1
+            self._store.append(row)
+            return _MockResult([])
+
+        if self._update_data is not None:
+            for i, row in enumerate(self._store):
+                if self._matches(row):
+                    self._store[i] = {**row, **self._update_data}
+            return _MockResult([])
+
+        rows = [r for r in self._store if self._matches(r)]
+        if self._order_col:
+            # Use _seq as tiebreaker so insertion order is deterministic
+            # when timestamps collide (common in fast unit tests).
+            rows.sort(
+                key=lambda r: (r.get(self._order_col) or "", r.get("_seq", 0)),
+                reverse=self._order_desc,
+            )
+        if self._limit_n is not None:
+            rows = rows[:self._limit_n]
+        return _MockResult(rows)
+
+
+class _MockSupabase:
+    def __init__(self):
+        self._bets: list[dict] = []
+        self._seq = 0
+
+    def table(self, name):
+        return _MockQueryBuilder(self._bets, self)
+
+
 # --- Setup/teardown ----------------------------------------------------------
 
 @pytest.fixture(autouse=True)
-def clean_db(monkeypatch, tmp_path):
-    """Fresh temp database for each test — no Windows file lock issues."""
-    test_db = tmp_path / "test_bets.db"
-    monkeypatch.setattr(ltm_module, "DB_PATH", test_db)
+def clean_db(monkeypatch):
+    """Fresh in-memory Supabase mock for each test."""
+    monkeypatch.setattr(ltm_module, "_sb", _MockSupabase())
     yield
 
 # --- helpers -----------------------------------------------------------------
