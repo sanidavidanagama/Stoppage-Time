@@ -124,4 +124,6 @@ venv.bak/
 *.db
 *.sqlite
 
+check_db.py
+
 # End of file

@@ -519,7 +519,7 @@ def run(home: str, away: str) -> dict:
             bet_outcome       = bet_decision.get("outcome") if bet_decision else None,
             bet_direction     = "long" if bet_decision else None,
             bet_size_usdc     = bet_decision.get("size_usdc") if bet_decision else None,
-            edge_pp           = bet_decision.get("edge_pp") if bet_decision else None,
+            edge_pp           = (bet_decision.get("edge_pp") or _compute_gap(final_decision, pm_prices)) if bet_decision else _compute_gap(final_decision, pm_prices),
             signals_used      = final_decision.get("signals_used", []),
             rationale         = final_decision.get("rationale", ""),
             kickoff           = identity_map["kickoff"],
