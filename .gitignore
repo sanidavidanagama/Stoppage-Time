@@ -124,6 +124,9 @@ venv.bak/
 *.db
 *.sqlite
 
+migrate_to_supabase.py
+inject_bet.py
 check_db.py
+bets.db
 
 # End of file

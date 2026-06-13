@@ -29,8 +29,6 @@ from data.tactics    import analyse as tactics_analyse
 from data.polymarket import get_all as pm_get_all
 from data.supabase   import get_all as sb_get_all
 from data.news.fetcher  import fetch_news
-from data.news.embedder import embed_articles
-from data.news.store    import store_articles, clear_collection
 
 from agent.memory.stssm  import new_session, STSSM
 from agent.memory.ltm    import save_bet, get_bankroll_summary
@@ -172,10 +170,6 @@ def run(home: str, away: str) -> dict:
             articles = fetch_news(home, away)
         except Exception:
             articles = []
-        if articles:
-            embedded = embed_articles(articles)
-            clear_collection()
-            store_articles(embedded)
         stm.news = articles
         rec_news = observing(
             stm.session_id,
