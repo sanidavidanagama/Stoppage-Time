@@ -300,6 +300,17 @@ def get_balance_map(starting_balance: float = 100.0) -> dict:
     return result
 
 
+def already_bet(session_id: str) -> bool:
+    """Return True if a bet record already exists for this session_id."""
+    res = (
+        _client().table("bets")
+        .select("id")
+        .eq("session_id", session_id)
+        .execute()
+    )
+    return len(res.data) > 0
+
+
 def get_bankroll_summary(starting_balance: float = 100.0) -> dict:
     """
     Compute current bankroll state from all resolved bets.

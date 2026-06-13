@@ -31,7 +31,7 @@ from data.supabase   import get_all as sb_get_all
 from data.news.fetcher  import fetch_news
 
 from agent.memory.stssm  import new_session, STSSM
-from agent.memory.ltm    import save_bet, get_bankroll_summary
+from agent.memory.ltm    import save_bet, get_bankroll_summary, already_bet
 from agent.reasoning     import call as reasoning_call
 from agent.bet_manager   import decide as bet_manager_decide
 from agent.reasoning_logger import start_fixture_log, end_fixture_log
@@ -66,6 +66,14 @@ def run(home: str, away: str) -> dict:
         stm.session_id   = f"prematch:{identity_map['fixture_id']}"
         stm.fixture_name = identity_map["fixture_name"]
         stm.kickoff      = identity_map["kickoff"]
+
+        if already_bet(stm.session_id):
+            print(f"Already have a record for {identity_map['fixture_name']} — skipping.")
+            return {
+                "session_id": stm.session_id,
+                "status":     "skipped",
+                "reason":     "already_bet",
+            }
 
         fixture_id_str = str(identity_map["fixture_id"])
 
