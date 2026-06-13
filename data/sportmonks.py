@@ -243,21 +243,57 @@ def get_lineups(identity_map: dict) -> dict:
             "available": False,
         }
 
-    lineups = r.json()["body"]["data"].get("lineups") or []
+    raw_players = r.json()["body"]["data"].get("lineups") or []
 
-    home_lineup = None
-    away_lineup = None
+    home_id = identity_map["home"]["sm_team_id"]
+    away_id = identity_map["away"]["sm_team_id"]
 
-    for lineup in lineups:
-        tid = lineup.get("team_id")
+    home_players: list[dict] = []
+    away_players: list[dict] = []
+
+    for p in raw_players:
+        tid = p.get("team_id")
         entry = {
-            "formation": lineup.get("formation"),
-            "players":   lineup.get("players") or [],
+            "player_name":        p.get("player_name"),
+            "jersey_number":      p.get("jersey_number"),
+            "position_id":        p.get("position_id"),
+            "type_id":            p.get("type_id"),          # 11=starter 12=bench
+            "formation_field":    p.get("formation_field"),
+            "formation_position": p.get("formation_position"),
         }
-        if tid == identity_map["home"]["sm_team_id"]:
-            home_lineup = entry
-        elif tid == identity_map["away"]["sm_team_id"]:
-            away_lineup = entry
+        if tid == home_id:
+            home_players.append(entry)
+        elif tid == away_id:
+            away_players.append(entry)
+
+    def _derive_formation(starters: list[dict]) -> str | None:
+        rows: dict[str, int] = {}
+        for p in starters:
+            field = p.get("formation_field")
+            if field:
+                row = field.split(":")[0]
+                rows[row] = rows.get(row, 0) + 1
+        # skip row "1" (GK) and sort numerically
+        sorted_rows = sorted(
+            ((int(k), v) for k, v in rows.items() if k != "1"),
+            key=lambda x: x[0],
+        )
+        counts = [str(v) for _, v in sorted_rows]
+        return "-".join(counts) if counts else None
+
+    def _build_team(players: list[dict]) -> dict | None:
+        if not players:
+            return None
+        starters = [p for p in players if p.get("type_id") == 11]
+        bench    = [p for p in players if p.get("type_id") == 12]
+        return {
+            "formation": _derive_formation(starters),
+            "starters":  starters,
+            "bench":     bench,
+        }
+
+    home_lineup = _build_team(home_players)
+    away_lineup = _build_team(away_players)
 
     return {
         "home":      home_lineup,

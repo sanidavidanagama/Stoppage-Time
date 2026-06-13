@@ -113,19 +113,17 @@ def decide(
         if (result.get("size_usdc") or 0) > max_from_bankroll:
             result["size_usdc"] = max_from_bankroll
 
-        # no draw bets
-        if result.get("outcome") == "draw":
-            return _skip("Draw bets not supported")
-
         # recover missing team_code from the chosen outcome
-        if result.get("team_code") not in [home_code, away_code]:
+        if result.get("team_code") not in [home_code, away_code, "draw"]:
             if result.get("outcome") == "home":
                 result["team_code"] = home_code
             elif result.get("outcome") == "away":
                 result["team_code"] = away_code
+            elif result.get("outcome") == "draw":
+                result["team_code"] = "draw"
 
         # validate team_code
-        if result.get("team_code") not in [home_code, away_code]:
+        if result.get("team_code") not in [home_code, away_code, "draw"]:
             return _skip(f"Invalid team_code: {result.get('team_code')}")
 
         result["_thinking"]  = thinking
@@ -194,7 +192,7 @@ def _fallback_decision(
     bankroll: dict,
 ) -> dict | None:
     outcome = prediction.get("outcome")
-    if outcome not in ["home", "away"]:
+    if outcome not in ["home", "away", "draw"]:
         return None
 
     market_mid = live_prices.get(outcome)
@@ -222,7 +220,12 @@ def _fallback_decision(
     if size_usdc <= 0:
         return _skip("Bankroll cap reduced size to zero")
 
-    team_code = home_code if outcome == "home" else away_code
+    if outcome == "home":
+        team_code = home_code
+    elif outcome == "away":
+        team_code = away_code
+    else:
+        team_code = "draw"
     limit_price = round(min(max(float(market_mid) + 0.015, 0.01), 0.99), 3)
 
     return {

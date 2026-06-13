@@ -20,8 +20,8 @@ Negative edge = market overprices the pick = go LONG on the OPPOSITE team instea
 ## Order API constraints
 
 - Only BUY YES is supported — always go long on a team
-- Only home or away — no draw bets
-- team_code must be the short code (e.g. "MEX" or "ZAF")
+- team_code must be the short code (e.g. "MEX" or "ZAF") for home/away bets, or the literal string "draw" for draw bets
+- For draw bets: team_code = "draw", outcome = "draw", edge = your_draw_prob - polymarket_draw_mid
 
 ## Sizing rules (use these as a starting point, reason freely)
 
@@ -43,8 +43,8 @@ Must be realistic — too far from mid won't fill.
 
 {
   "should_place_order": true | false,
-  "team_code":          "MEX" | "ZAF" | null,
-  "outcome":            "home" | "away",
+  "team_code":          "MEX" | "ZAF" | "draw" | null,
+  "outcome":            "home" | "away" | "draw",
   "size_usdc":          float,
   "limit_price":        float,
   "edge_pp":            float,
