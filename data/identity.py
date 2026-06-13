@@ -19,13 +19,6 @@ from config import settings
 # --- Upcoming fixture discovery -----------------------------------------------
 
 def get_upcoming_fixture(hours_ahead: int = 1) -> dict | None:
-    """
-    Scan the WC2026 season schedule and return the first fixture whose
-    kickoff falls within the next `hours_ahead` hours.
-
-    Returns a dict with keys: fixture_id, fixture_name, home, away, kickoff
-    Returns None if nothing is upcoming or on any error.
-    """
     try:
         r = requests.get(
             f"{settings.SPORTMONKS_PROXY}/schedules/seasons/{settings.SEASON_ID}",
@@ -34,8 +27,9 @@ def get_upcoming_fixture(hours_ahead: int = 1) -> dict | None:
         )
         r.raise_for_status()
 
-        now    = datetime.now(timezone.utc)
-        cutoff = now + timedelta(hours=hours_ahead)
+        now      = datetime.now(timezone.utc)
+        cutoff   = now + timedelta(hours=hours_ahead)
+        upcoming = []
 
         for stage in r.json()["body"]["data"]:
             for round_ in (stage.get("rounds") or []):
@@ -45,23 +39,30 @@ def get_upcoming_fixture(hours_ahead: int = 1) -> dict | None:
                         continue
                     try:
                         kickoff = datetime.fromisoformat(
-                            kickoff_str.replace("Z", "+00:00")
+                            kickoff_str.replace(" ", "T") + "+00:00"
                         )
                     except ValueError:
                         continue
                     if now <= kickoff <= cutoff:
                         name  = fixture.get("name", "")
                         parts = [p.strip() for p in name.split("vs")]
-                        home  = parts[0] if len(parts) == 2 else name
-                        away  = parts[1] if len(parts) == 2 else name
-                        return {
+                        upcoming.append({
                             "fixture_id":   fixture["id"],
                             "fixture_name": name,
-                            "home":         home,
-                            "away":         away,
+                            "home":         parts[0] if len(parts) == 2 else name,
+                            "away":         parts[1] if len(parts) == 2 else name,
                             "kickoff":      kickoff_str,
-                        }
-        return None
+                            "_kickoff_dt":  kickoff,
+                        })
+
+        if not upcoming:
+            return None
+
+        # return the earliest upcoming fixture
+        earliest = min(upcoming, key=lambda x: x["_kickoff_dt"])
+        earliest.pop("_kickoff_dt")
+        return earliest
+
     except Exception:
         return None
 
