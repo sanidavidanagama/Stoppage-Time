@@ -217,12 +217,8 @@ def _format_news(stm: STSSM) -> str:
         return "No recent news found."
 
     lines = []
-    for i, a in enumerate(stm.news[:5], 1):
-        lines.append(
-            f"{i}. [{a.get('source')}] {a.get('title')}\n"
-            f"   {a.get('summary', '')[:200]}\n"
-            f"   Published: {(a.get('published') or '')[:10]}"
-        )
+    for a in stm.news[:5]:
+        lines.append(f"{a.get('source')}: {a.get('summary', '')}")
     return "\n".join(lines)
 
 

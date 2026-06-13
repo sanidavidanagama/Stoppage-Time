@@ -2,102 +2,35 @@
 agent/memory/ltm.py
 
 Long Term Memory (LTM).
-Persists bet history and agent performance to local SQLite.
-Read before each session to give Gemini context from past bets.
+Persists bet history to Supabase.
+Read before each session to give context from past bets.
 Updated after each bet resolves.
-
-Database: bets.db (created automatically on first run)
 """
 
 from __future__ import annotations
-import sqlite3
 import json
+import uuid
 from datetime import datetime, timezone
-from pathlib import Path
 from config import settings
+from supabase import create_client
 
-DB_PATH = Path("bets.db")
-
-
-# --- Schema ------------------------------------------------------------------
-
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS bets (
-    id              TEXT PRIMARY KEY,
-    session_id      TEXT NOT NULL,
-    created_at      TEXT NOT NULL,
-
-    -- Match context
-    fixture_name    TEXT NOT NULL,
-    kickoff         TEXT,
-    stage           TEXT,
-    home_team       TEXT NOT NULL,
-    away_team       TEXT NOT NULL,
-
-    -- Signals used
-    ml_home_prob    REAL,
-    ml_away_prob    REAL,
-    ml_draw_prob    REAL,
-    bk_home_prob    REAL,
-    bk_away_prob    REAL,
-    bk_draw_prob    REAL,
-    pm_home_prob    REAL,
-    pm_away_prob    REAL,
-    pm_draw_prob    REAL,
-    ml_market_gap   REAL,
-
-    -- Agent decision
-    predicted_outcome   TEXT,
-    agent_probability   REAL,
-    confidence_level    TEXT,
-    should_bet          INTEGER,
-    bet_outcome         TEXT,
-    bet_direction       TEXT,
-    bet_size_usdc       REAL,
-    edge_pp             REAL,
-    signals_used        TEXT,   -- JSON list
-
-    -- Result (filled in after match)
-    actual_outcome  TEXT,
-    pnl             REAL,
-    won             INTEGER,    -- 1=yes, 0=no, NULL=pending
-
-    -- Metadata
-    tool_calls_made INTEGER DEFAULT 0,
-    rationale       TEXT,
-    notes           TEXT,
-    home_code       TEXT DEFAULT '',
-    away_code       TEXT DEFAULT ''
-);
-
-CREATE TABLE IF NOT EXISTS agent_stats (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    updated_at      TEXT NOT NULL,
-    total_bets      INTEGER DEFAULT 0,
-    winning_bets    INTEGER DEFAULT 0,
-    total_pnl       REAL DEFAULT 0.0,
-    win_rate        REAL DEFAULT 0.0,
-    avg_edge_pp     REAL DEFAULT 0.0,
-    best_signal     TEXT,
-    worst_signal    TEXT
-);
-"""
+# Lazily initialised so the module imports cleanly when credentials are absent
+# (e.g. test runs).  All internal helpers call _client() instead of _sb directly,
+# but _sb is the monkeypatch target used by tests.
+_sb = None
 
 
-# --- Connection --------------------------------------------------------------
+def _client():
+    global _sb
+    if _sb is None:
+        _sb = create_client(settings.ST_SUPABASE_URL, settings.ST_SUPABASE_SECRET_KEY)
+    return _sb
 
-def _connect() -> sqlite3.Connection:
-    """Open a connection and ensure schema exists."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.executescript(SCHEMA)
-    for col, defn in [("home_code", "TEXT DEFAULT ''"), ("away_code", "TEXT DEFAULT ''")]:
-        try:
-            conn.execute(f"ALTER TABLE bets ADD COLUMN {col} {defn}")
-        except Exception:
-            pass
-    conn.commit()
-    return conn
+
+# --- Helpers -----------------------------------------------------------------
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 # --- Write -------------------------------------------------------------------
@@ -140,40 +73,40 @@ def save_bet(
 
     Returns the bet id.
     """
-    import uuid
     bet_id = str(uuid.uuid4())
-
-    with _connect() as conn:
-        conn.execute("""
-            INSERT INTO bets (
-                id, session_id, created_at,
-                fixture_name, kickoff, stage, home_team, away_team,
-                ml_home_prob, ml_away_prob, ml_draw_prob,
-                bk_home_prob, bk_away_prob, bk_draw_prob,
-                pm_home_prob, pm_away_prob, pm_draw_prob,
-                ml_market_gap,
-                predicted_outcome, agent_probability, confidence_level,
-                should_bet, bet_outcome, bet_direction,
-                bet_size_usdc, edge_pp, signals_used,
-                tool_calls_made, rationale,
-                home_code, away_code
-            ) VALUES (
-                ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
-            )
-        """, (
-            bet_id, session_id, _now(),
-            fixture_name, kickoff, stage, home_team, away_team,
-            ml_home_prob, ml_away_prob, ml_draw_prob,
-            bk_home_prob, bk_away_prob, bk_draw_prob,
-            pm_home_prob, pm_away_prob, pm_draw_prob,
-            ml_market_gap,
-            predicted_outcome, agent_probability, confidence_level,
-            int(should_bet), bet_outcome, bet_direction,
-            bet_size_usdc, edge_pp, json.dumps(signals_used),
-            tool_calls_made, rationale,
-            home_code, away_code,
-        ))
-
+    _client().table("bets").insert({
+        "id":                bet_id,
+        "session_id":        session_id,
+        "created_at":        _now(),
+        "fixture_name":      fixture_name,
+        "kickoff":           kickoff,
+        "stage":             stage,
+        "home_team":         home_team,
+        "away_team":         away_team,
+        "ml_home_prob":      ml_home_prob,
+        "ml_away_prob":      ml_away_prob,
+        "ml_draw_prob":      ml_draw_prob,
+        "bk_home_prob":      bk_home_prob,
+        "bk_away_prob":      bk_away_prob,
+        "bk_draw_prob":      bk_draw_prob,
+        "pm_home_prob":      pm_home_prob,
+        "pm_away_prob":      pm_away_prob,
+        "pm_draw_prob":      pm_draw_prob,
+        "ml_market_gap":     ml_market_gap,
+        "predicted_outcome": predicted_outcome,
+        "agent_probability": agent_probability,
+        "confidence_level":  confidence_level,
+        "should_bet":        int(should_bet),
+        "bet_outcome":       bet_outcome,
+        "bet_direction":     bet_direction,
+        "bet_size_usdc":     bet_size_usdc,
+        "edge_pp":           edge_pp,
+        "signals_used":      json.dumps(signals_used),
+        "tool_calls_made":   tool_calls_made,
+        "rationale":         rationale,
+        "home_code":         home_code,
+        "away_code":         away_code,
+    }).execute()
     return bet_id
 
 
@@ -187,23 +120,15 @@ def update_outcome(bet_id: str, actual_outcome: str, pnl: float) -> None:
         actual_outcome: "home" | "draw" | "away"
         pnl:            profit/loss in USDC
     """
-    with _connect() as conn:
-        row = conn.execute(
-            "SELECT predicted_outcome FROM bets WHERE id = ?", (bet_id,)
-        ).fetchone()
-
-        if not row:
-            return
-
-        won = 1 if row["predicted_outcome"] == actual_outcome else 0
-
-        conn.execute("""
-            UPDATE bets
-            SET actual_outcome = ?, pnl = ?, won = ?
-            WHERE id = ?
-        """, (actual_outcome, pnl, won, bet_id))
-
-    _refresh_agent_stats()
+    res = _client().table("bets").select("predicted_outcome").eq("id", bet_id).execute()
+    if not res.data:
+        return
+    won = 1 if res.data[0]["predicted_outcome"] == actual_outcome else 0
+    _client().table("bets").update({
+        "actual_outcome": actual_outcome,
+        "pnl":            pnl,
+        "won":            won,
+    }).eq("id", bet_id).execute()
 
 
 # --- Read --------------------------------------------------------------------
@@ -211,16 +136,16 @@ def update_outcome(bet_id: str, actual_outcome: str, pnl: float) -> None:
 def get_recent_bets(limit: int = 10) -> list[dict]:
     """
     Fetch the most recent N bets.
-    Used to populate LTM context for Gemini.
+    Used to populate LTM context for the agent.
     """
-    with _connect() as conn:
-        rows = conn.execute("""
-            SELECT * FROM bets
-            ORDER BY created_at DESC
-            LIMIT ?
-        """, (limit,)).fetchall()
-
-    return [dict(row) for row in rows]
+    res = (
+        _client().table("bets")
+        .select("*")
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    return res.data or []
 
 
 def get_similar_bets(
@@ -230,45 +155,54 @@ def get_similar_bets(
 ) -> list[dict]:
     """
     Fetch past bets where the ML vs market gap was similar.
-    Helps Gemini understand how similar situations played out.
+    Helps the agent understand how similar situations played out.
+    ABS() is unavailable in PostgREST, so gap filtering is done in Python.
     """
-    with _connect() as conn:
-        rows = conn.execute("""
-            SELECT * FROM bets
-            WHERE ml_market_gap IS NOT NULL
-              AND ABS(ml_market_gap - ?) <= ?
-              AND won IS NOT NULL
-            ORDER BY created_at DESC
-            LIMIT ?
-        """, (ml_market_gap, gap_tolerance, limit)).fetchall()
-
-    return [dict(row) for row in rows]
+    res = _client().table("bets").select("*").execute()
+    rows = [
+        r for r in (res.data or [])
+        if r.get("ml_market_gap") is not None
+        and r.get("won") is not None
+        and abs(r["ml_market_gap"] - ml_market_gap) <= gap_tolerance
+    ]
+    rows.sort(key=lambda r: r["created_at"], reverse=True)
+    return rows[:limit]
 
 
 def get_agent_stats() -> dict | None:
     """
-    Fetch the latest agent performance stats.
+    Compute agent performance stats from the bets table.
+    Returns None when no bets exist.
     """
-    with _connect() as conn:
-        row = conn.execute("""
-            SELECT * FROM agent_stats
-            ORDER BY updated_at DESC
-            LIMIT 1
-        """).fetchone()
+    res = _client().table("bets").select("*").eq("should_bet", 1).execute()
+    rows = res.data or []
+    if not rows:
+        return None
 
-    return dict(row) if row else None
+    resolved    = [r for r in rows if r.get("won") is not None]
+    total_bets  = len(rows)
+    winning_bets = sum(1 for r in resolved if r["won"] == 1)
+    total_pnl   = sum(r["pnl"] or 0.0 for r in resolved)
+    win_rate    = winning_bets / len(resolved) if resolved else 0.0
+    edges       = [r["edge_pp"] for r in rows if r.get("edge_pp") is not None]
+    avg_edge_pp = sum(edges) / len(edges) if edges else 0.0
+
+    return {
+        "total_bets":   total_bets,
+        "winning_bets": winning_bets,
+        "total_pnl":    total_pnl,
+        "win_rate":     win_rate,
+        "avg_edge_pp":  avg_edge_pp,
+    }
 
 
 def get_ltm_context(ml_market_gap: float | None = None) -> str:
     """
-    Build a plain text LTM summary for Gemini.
+    Build a plain text LTM summary for the agent.
     Includes recent bets + similar past situations + overall stats.
-
-    This is what gets fed into the reasoning prompt.
     """
     lines = ["--- Long Term Memory ---\n"]
 
-    # Bankroll
     bankroll = get_bankroll_summary()
     lines.append(
         f"Bankroll:\n"
@@ -281,7 +215,6 @@ def get_ltm_context(ml_market_gap: float | None = None) -> str:
         f"  W/L              : {bankroll['wins']}W / {bankroll['losses']}L\n"
     )
 
-    # Agent stats
     stats = get_agent_stats()
     if stats and stats["total_bets"] > 0:
         lines.append(
@@ -290,7 +223,6 @@ def get_ltm_context(ml_market_gap: float | None = None) -> str:
             f"avg edge {stats['avg_edge_pp']:.1f}pp\n"
         )
 
-    # Recent bets
     recent = get_recent_bets(limit=5)
     if recent:
         lines.append("Last 5 bets:")
@@ -304,7 +236,6 @@ def get_ltm_context(ml_market_gap: float | None = None) -> str:
             )
         lines.append("")
 
-    # Similar situations
     if ml_market_gap is not None:
         similar = get_similar_bets(ml_market_gap)
         if similar:
@@ -324,24 +255,22 @@ def get_ltm_context(ml_market_gap: float | None = None) -> str:
 
 def get_active_bets() -> list[dict]:
     """Return pending bets (should_bet=1, won IS NULL) ordered by kickoff."""
-    with _connect() as conn:
-        rows = conn.execute("""
-            SELECT rowid AS _rowid, * FROM bets
-            WHERE should_bet = 1 AND won IS NULL
-            ORDER BY kickoff ASC
-        """).fetchall()
-    return [dict(row) for row in rows]
+    res = _client().table("bets").select("*").eq("should_bet", 1).execute()
+    rows = [r for r in (res.data or []) if r.get("won") is None]
+    rows.sort(key=lambda r: r.get("kickoff") or "")
+    return rows
 
 
 def get_all_orders(limit: int = 50) -> list[dict]:
     """Return all entries ordered by created_at DESC (includes no-bets)."""
-    with _connect() as conn:
-        rows = conn.execute("""
-            SELECT rowid AS _rowid, * FROM bets
-            ORDER BY created_at DESC
-            LIMIT ?
-        """, (limit,)).fetchall()
-    return [dict(row) for row in rows]
+    res = (
+        _client().table("bets")
+        .select("*")
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    return res.data or []
 
 
 def get_balance_map(starting_balance: float = 100.0) -> dict:
@@ -349,21 +278,22 @@ def get_balance_map(starting_balance: float = 100.0) -> dict:
     Compute the wallet balance immediately after each should_bet=1 bet was placed.
     Returns dict mapping bet_id -> balance_after.
     """
-    with _connect() as conn:
-        rows = conn.execute("""
-            SELECT id, created_at, bet_size_usdc, won, pnl
-            FROM bets
-            WHERE should_bet = 1
-            ORDER BY created_at ASC
-        """).fetchall()
+    res = (
+        _client().table("bets")
+        .select("id, created_at, bet_size_usdc, won, pnl")
+        .eq("should_bet", 1)
+        .order("created_at")
+        .execute()
+    )
+    rows = res.data or []
 
     balance = starting_balance
     result: dict = {}
     for row in rows:
-        size = row["bet_size_usdc"] or 0.0
+        size          = row["bet_size_usdc"] or 0.0
         balance_after = round(balance - size, 2)
         result[row["id"]] = balance_after
-        if row["won"] is not None:
+        if row.get("won") is not None:
             balance = round(balance_after + size + (row["pnl"] or 0.0), 2)
         else:
             balance = balance_after
@@ -374,66 +304,32 @@ def get_bankroll_summary(starting_balance: float = 100.0) -> dict:
     """
     Compute current bankroll state from all resolved bets.
     """
-    with _connect() as conn:
-        row = conn.execute("""
-            SELECT
-                COALESCE(SUM(bet_size_usdc), 0)        AS total_wagered,
-                COALESCE(SUM(CASE WHEN pnl IS NOT NULL
-                    THEN pnl ELSE 0 END), 0)           AS total_pnl,
-                COALESCE(MIN(pnl), 0)                  AS largest_loss,
-                COUNT(CASE WHEN won = 1 THEN 1 END)    AS wins,
-                COUNT(CASE WHEN won = 0 THEN 1 END)    AS losses
-            FROM bets
-            WHERE should_bet = 1
-        """).fetchone()
+    res = (
+        _client().table("bets")
+        .select("bet_size_usdc, pnl, won")
+        .eq("should_bet", 1)
+        .execute()
+    )
+    rows = res.data or []
 
-    total_pnl       = row["total_pnl"]
+    total_wagered = sum(r["bet_size_usdc"] or 0.0 for r in rows)
+    pnl_values    = [r["pnl"] for r in rows if r.get("pnl") is not None]
+    total_pnl     = sum(pnl_values)
+    largest_loss  = min(pnl_values) if pnl_values else 0.0
+    wins          = sum(1 for r in rows if r.get("won") == 1)
+    losses        = sum(1 for r in rows if r.get("won") == 0)
+
     current_balance = round(starting_balance + total_pnl, 2)
     peak_balance    = max(starting_balance, current_balance)
     drawdown        = round((peak_balance - current_balance) / peak_balance * 100, 1)
 
     return {
         "starting_balance": starting_balance,
-        "total_wagered":    round(row["total_wagered"], 2),
+        "total_wagered":    round(total_wagered, 2),
         "total_pnl":        round(total_pnl, 2),
         "current_balance":  current_balance,
-        "largest_loss":     round(row["largest_loss"], 2),
+        "largest_loss":     round(largest_loss, 2),
         "drawdown_pct":     drawdown,
-        "wins":             row["wins"],
-        "losses":           row["losses"],
+        "wins":             wins,
+        "losses":           losses,
     }
-
-# --- Helpers -----------------------------------------------------------------
-
-def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-def _refresh_agent_stats() -> None:
-    """Recompute and store agent performance stats."""
-    with _connect() as conn:
-        row = conn.execute("""
-            SELECT
-                COUNT(*)                        AS total_bets,
-                SUM(CASE WHEN won=1 THEN 1 END) AS winning_bets,
-                SUM(COALESCE(pnl, 0))           AS total_pnl,
-                AVG(CASE WHEN won IS NOT NULL
-                    THEN CAST(won AS FLOAT) END) AS win_rate,
-                AVG(edge_pp)                    AS avg_edge_pp
-            FROM bets
-            WHERE should_bet = 1
-        """).fetchone()
-
-        conn.execute("""
-            INSERT INTO agent_stats
-                (updated_at, total_bets, winning_bets,
-                 total_pnl, win_rate, avg_edge_pp)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (
-            _now(),
-            row["total_bets"] or 0,
-            row["winning_bets"] or 0,
-            row["total_pnl"] or 0.0,
-            row["win_rate"] or 0.0,
-            row["avg_edge_pp"] or 0.0,
-        ))
