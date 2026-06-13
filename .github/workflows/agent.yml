@@ -24,4 +24,5 @@ jobs:
           GEMINI_API_KEY:          ${{ secrets.GEMINI_API_KEY }}
           ST_SUPABASE_URL:         ${{ secrets.ST_SUPABASE_URL }}
           ST_SUPABASE_SECRET_KEY:  ${{ secrets.ST_SUPABASE_SECRET_KEY }}
+          DEBUG:                   "false"
         run: uv run main.py

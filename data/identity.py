@@ -12,7 +12,58 @@ Four ID systems:
 """
 
 import requests
+from datetime import datetime, timezone, timedelta
 from config import settings
+
+
+# --- Upcoming fixture discovery -----------------------------------------------
+
+def get_upcoming_fixture(hours_ahead: int = 1) -> dict | None:
+    """
+    Scan the WC2026 season schedule and return the first fixture whose
+    kickoff falls within the next `hours_ahead` hours.
+
+    Returns a dict with keys: fixture_id, fixture_name, home, away, kickoff
+    Returns None if nothing is upcoming or on any error.
+    """
+    try:
+        r = requests.get(
+            f"{settings.SPORTMONKS_PROXY}/schedules/seasons/{settings.SEASON_ID}",
+            headers=settings.H_ARENA,
+            timeout=15,
+        )
+        r.raise_for_status()
+
+        now    = datetime.now(timezone.utc)
+        cutoff = now + timedelta(hours=hours_ahead)
+
+        for stage in r.json()["body"]["data"]:
+            for round_ in (stage.get("rounds") or []):
+                for fixture in (round_.get("fixtures") or []):
+                    kickoff_str = fixture.get("starting_at")
+                    if not kickoff_str:
+                        continue
+                    try:
+                        kickoff = datetime.fromisoformat(
+                            kickoff_str.replace("Z", "+00:00")
+                        )
+                    except ValueError:
+                        continue
+                    if now <= kickoff <= cutoff:
+                        name  = fixture.get("name", "")
+                        parts = [p.strip() for p in name.split("vs")]
+                        home  = parts[0] if len(parts) == 2 else name
+                        away  = parts[1] if len(parts) == 2 else name
+                        return {
+                            "fixture_id":   fixture["id"],
+                            "fixture_name": name,
+                            "home":         home,
+                            "away":         away,
+                            "kickoff":      kickoff_str,
+                        }
+        return None
+    except Exception:
+        return None
 
 
 # --- Fixture discovery --------------------------------------------------------
