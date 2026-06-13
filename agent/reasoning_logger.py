@@ -1,15 +1,16 @@
-"""Fixture-scoped human review logging for Gemini calls."""
+"""Fixture-scoped human review logging — persisted to Supabase logs table."""
 
 from __future__ import annotations
 
 import json
 import re
+import uuid
 from dataclasses import dataclass, field
-from pathlib import Path
 from threading import Lock
 
+from agent.memory.ltm import _client
 
-_ROOT = Path(__file__).resolve().parent.parent / "logs"
+
 _LOCK = Lock()
 _ACTIVE_LOGGER: "FixtureLogger | None" = None
 
@@ -33,46 +34,47 @@ def _sanitize_kickoff(kickoff: str | None) -> str:
 
 @dataclass
 class FixtureLogger:
-    base_dir: Path
     reasoning_count: int = 0
     tactics_count: int = 0
     bet_written: bool = False
     metadata: dict = field(default_factory=dict)
 
-    def next_reasoning_paths(self) -> tuple[Path, Path]:
-        self.reasoning_count += 1
-        prompt_path = self.base_dir / f"reasoning_prompt_{self.reasoning_count}.md"
-        response_path = self.base_dir / f"reasoning_response_{self.reasoning_count}.txt"
-        return prompt_path, response_path
 
-    def next_tactics_paths(self) -> tuple[Path, Path]:
-        self.tactics_count += 1
-        prompt_path = self.base_dir / f"tactics_prompt_{self.tactics_count}.md"
-        response_path = self.base_dir / f"tactics_response_{self.tactics_count}.txt"
-        return prompt_path, response_path
+def _insert_log(log_type: str, round_num: int, content: str) -> None:
+    """Insert one row into the Supabase logs table. Never raises."""
+    logger = get_active_logger()
+    if logger is None:
+        return
+    try:
+        _client().table("logs").insert({
+            "session_id":   logger.metadata.get("session_id"),
+            "fixture_name": logger.metadata.get("fixture_name"),
+            "log_type":     log_type,
+            "round":        round_num,
+            "content":      content,
+        }).execute()
+    except Exception:
+        pass
 
-    def bet_paths(self) -> tuple[Path, Path]:
-        return self.base_dir / "bet_prompt.md", self.base_dir / "bet_response.txt"
 
-
-def start_fixture_log(home_code: str, away_code: str, kickoff: str | None, fixture_name: str | None = None) -> FixtureLogger:
-    """Create the fixture folder used for human review artifacts."""
+def start_fixture_log(
+    home_code:    str,
+    away_code:    str,
+    kickoff:      str | None,
+    fixture_name: str | None = None,
+    session_id:   str | None = None,   
+) -> FixtureLogger:
+    """Create a new fixture logger and register it as the active logger."""
     folder_name = f"{_slugify(home_code)}_vs_{_slugify(away_code)}_{_sanitize_kickoff(kickoff)}"
-    fixture_dir = _ROOT / folder_name
-    suffix = 2
-    while fixture_dir.exists():
-        fixture_dir = _ROOT / f"{folder_name}_{suffix}"
-        suffix += 1
-    fixture_dir.mkdir(parents=True, exist_ok=True)
 
     logger = FixtureLogger(
-        base_dir=fixture_dir,
         metadata={
-            "home_code": home_code,
-            "away_code": away_code,
-            "kickoff": kickoff,
-            "fixture_name": fixture_name,
-            "folder_name": folder_name,
+            "session_id":   session_id or str(uuid.uuid4()),
+            "home_code":    home_code,
+            "away_code":    away_code,
+            "kickoff":      kickoff,
+            "fixture_name": fixture_name or folder_name,
+            "folder_name":  folder_name,
         },
     )
 
@@ -92,41 +94,30 @@ def end_fixture_log() -> None:
         _ACTIVE_LOGGER = None
 
 
-def log_reasoning(prompt_text: str, response_text: str) -> tuple[Path, Path] | None:
+def log_reasoning(prompt_text: str, response_text: str) -> None:
     logger = get_active_logger()
     if logger is None:
-        return None
-
-    prompt_path, response_path = logger.next_reasoning_paths()
-    prompt_path.write_text(prompt_text, encoding="utf-8")
-    response_path.write_text(response_text, encoding="utf-8")
-    return prompt_path, response_path
+        return
+    logger.reasoning_count += 1
+    _insert_log("reasoning_prompt",   logger.reasoning_count, prompt_text)
+    _insert_log("reasoning_response", logger.reasoning_count, response_text)
 
 
-def log_bet(prompt_text: str, response_text: str) -> tuple[Path, Path] | None:
+def log_bet(prompt_text: str, response_text: str) -> None:
     logger = get_active_logger()
     if logger is None:
-        return None
-
-    prompt_path, response_path = logger.bet_paths()
-    if not logger.bet_written:
-        prompt_path.write_text(prompt_text, encoding="utf-8")
-        logger.bet_written = True
-    else:
-        prompt_path.write_text(prompt_text, encoding="utf-8")
-    response_path.write_text(response_text, encoding="utf-8")
-    return prompt_path, response_path
+        return
+    _insert_log("bet_prompt",   1, prompt_text)
+    _insert_log("bet_response", 1, response_text)
 
 
-def log_tactics(prompt_text: str, response_text: str) -> tuple[Path, Path] | None:
+def log_tactics(prompt_text: str, response_text: str) -> None:
     logger = get_active_logger()
     if logger is None:
-        return None
-
-    prompt_path, response_path = logger.next_tactics_paths()
-    prompt_path.write_text(prompt_text, encoding="utf-8")
-    response_path.write_text(response_text, encoding="utf-8")
-    return prompt_path, response_path
+        return
+    logger.tactics_count += 1
+    _insert_log("tactics_prompt",   logger.tactics_count, prompt_text)
+    _insert_log("tactics_response", logger.tactics_count, response_text)
 
 
 def serialize_logger_state() -> str:

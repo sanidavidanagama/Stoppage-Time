@@ -72,6 +72,7 @@ def run(home: str, away: str) -> dict:
             away_code   = identity_map["away"]["short_code"],
             kickoff     = stm.kickoff,
             fixture_name = identity_map["fixture_name"],
+            session_id   = stm.session_id,   
         )
 
         print(f"  Fixture  : {identity_map['fixture_name']}")
