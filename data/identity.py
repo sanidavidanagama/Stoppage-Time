@@ -18,52 +18,53 @@ from config import settings
 
 # --- Upcoming fixture discovery -----------------------------------------------
 
-def get_upcoming_fixture(hours_ahead: int = 1) -> dict | None:
+def get_upcoming_fixture(hours_ahead: int = 2) -> dict | None:
+    """
+    Find the earliest upcoming fixture with an open or soon-to-open PRE_MATCH
+    window using the Arena matches endpoint.
+    Returns dict with fixture_id, fixture_name, home, away, kickoff or None.
+    """
     try:
         r = requests.get(
-            f"{settings.SPORTMONKS_PROXY}/schedules/seasons/{settings.SEASON_ID}",
+            f"{settings.ARENA}/api/v1/arena/matches",
             headers=settings.H_ARENA,
             timeout=15,
         )
         r.raise_for_status()
 
-        now      = datetime.now(timezone.utc)
-        cutoff   = now + timedelta(hours=hours_ahead)
-        upcoming = []
+        now    = datetime.now(timezone.utc)
+        cutoff = now + timedelta(hours=hours_ahead)
 
-        for stage in r.json()["body"]["data"]:
-            for round_ in (stage.get("rounds") or []):
-                for fixture in (round_.get("fixtures") or []):
-                    kickoff_str = fixture.get("starting_at")
-                    if not kickoff_str:
-                        continue
-                    try:
-                        kickoff = datetime.fromisoformat(
-                            kickoff_str.replace(" ", "T") + "+00:00"
-                        )
-                    except ValueError:
-                        continue
-                    if now <= kickoff <= cutoff:
-                        name  = fixture.get("name", "")
-                        parts = [p.strip() for p in name.split("vs")]
-                        upcoming.append({
-                            "fixture_id":   fixture["id"],
-                            "fixture_name": name,
-                            "home":         parts[0] if len(parts) == 2 else name,
-                            "away":         parts[1] if len(parts) == 2 else name,
-                            "kickoff":      kickoff_str,
-                            "_kickoff_dt":  kickoff,
-                        })
+        upcoming = []
+        for m in r.json().get("matches", []):
+            if not m.get("prematch_enabled"):
+                continue
+            kickoff = datetime.fromtimestamp(
+                m["kickoff_utc"] / 1000, tz=timezone.utc
+            )
+            if now <= kickoff <= cutoff:
+                upcoming.append((kickoff, m["fixture_id"]))
 
         if not upcoming:
             return None
 
-        # return the earliest upcoming fixture
-        earliest = min(upcoming, key=lambda x: x["_kickoff_dt"])
-        earliest.pop("_kickoff_dt")
-        return earliest
+        kickoff, fixture_id = min(upcoming, key=lambda x: x[0])
 
-    except Exception:
+        # Resolve home/away names from Sportmonks participants
+        sm = _get_sportmonks_identities(fixture_id)
+        home_name = sm["home"]["name"]
+        away_name = sm["away"]["name"]
+
+        return {
+            "fixture_id":   str(fixture_id),
+            "fixture_name": f"{home_name} vs {away_name}",
+            "home":         home_name,
+            "away":         away_name,
+            "kickoff":      kickoff.isoformat(),
+        }
+
+    except Exception as e:
+        print(f"get_upcoming_fixture error: {e}")
         return None
 
 

@@ -613,7 +613,7 @@ def _place_order(
     payload = {
         "fixture_id":            str(fixture_id),
         "team_code":             team_code,
-        "usd_size":              str(round(size_usdc, 2)),
+        "usd_size":              f"{size_usdc:.2f}",
         "limit_price":           limit_price,
         "time_in_force_seconds": 30,
         "idempotency_key":       str(uuid.uuid4()),
