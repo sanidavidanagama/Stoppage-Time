@@ -458,7 +458,7 @@ def run(home: str, away: str) -> dict:
                         parameters       = {
                             "fixture_id":  fixture_id_str,
                             "team_code":   bet_decision["team_code"],
-                            "usd_size":    str(bet_decision["size_usdc"]),
+                            "usd_size":    f"{bet_decision['size_usdc']:.2f}",
                             "limit_price": bet_decision["limit_price"],
                         },
                         execution_status = "pending" if order_result.get("status") not in ["error", "rejected"] else "failed",
@@ -608,12 +608,10 @@ def _place_order(
     size_usdc:   float,
     limit_price: float,
 ) -> dict:
-    size_usdc = min(size_usdc, 1.0)   # debug cap
-
     payload = {
         "fixture_id":            str(fixture_id),
         "team_code":             team_code,
-        "usd_size":              str(round(size_usdc, 2)),
+        "usd_size":              f"{size_usdc:.2f}",
         "limit_price":           limit_price,
         "time_in_force_seconds": 30,
         "idempotency_key":       str(uuid.uuid4()),

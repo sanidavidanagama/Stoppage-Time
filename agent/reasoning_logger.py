@@ -40,6 +40,8 @@ class FixtureLogger:
     metadata: dict = field(default_factory=dict)
 
 
+_MAX_CONTENT_CHARS = 50_000
+
 def _insert_log(log_type: str, round_num: int, content: str) -> None:
     """Insert one row into the Supabase logs table. Never raises."""
     logger = get_active_logger()
@@ -51,7 +53,7 @@ def _insert_log(log_type: str, round_num: int, content: str) -> None:
             "fixture_name": logger.metadata.get("fixture_name"),
             "log_type":     log_type,
             "round":        round_num,
-            "content":      content,
+            "content":      content[:_MAX_CONTENT_CHARS],
         }).execute()
     except Exception:
         pass

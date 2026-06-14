@@ -85,10 +85,10 @@ def decide(
             contents = json.dumps(payload, default=str),
             config   = types.GenerateContentConfig(
                 system_instruction = system_prompt,
-                max_output_tokens  = 600,
+                response_mime_type = "application/json",
+                max_output_tokens  = 2048,
                 thinking_config    = types.ThinkingConfig(
                     include_thoughts = True,
-                    thinking_budget  = 512,
                 ),
             ),
         )
