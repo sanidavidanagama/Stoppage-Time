@@ -89,7 +89,6 @@ def decide(
                 max_output_tokens  = 2048,
                 thinking_config    = types.ThinkingConfig(
                     include_thoughts = True,
-                    budget_tokens    = 512,
                 ),
             ),
         )

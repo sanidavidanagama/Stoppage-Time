@@ -59,7 +59,7 @@ class Settings(BaseSettings):
     # --- Agent behaviour ---
     DEBUG:           bool  = True   # set to False for production
     MAX_TOOL_ROUNDS: int   = 3
-    MAX_BET_SIZE:    float = 5.0
+    MAX_BET_SIZE:    float = 15.0
     MIN_EDGE_PP:     float = 5.0
 
     # --- Headers ---
