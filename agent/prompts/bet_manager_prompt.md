@@ -11,6 +11,9 @@ Your job is to decide HOW MUCH to bet and at WHAT PRICE.
 - home_code:   short code for home team e.g. "MEX"
 - away_code:   short code for away team e.g. "ZAF"
 
+### Your past performance
+{ltm_context}
+
 ## How to calculate edge
 
 Edge = (analyst's probability) - (market mid for that outcome) in percentage points.
@@ -23,15 +26,22 @@ Negative edge = market overprices the pick = go LONG on the OPPOSITE team instea
 - team_code must be the short code (e.g. "MEX" or "ZAF") for home/away bets, or the literal string "draw" for draw bets
 - For draw bets: team_code = "draw", outcome = "draw", edge = your_draw_prob - polymarket_draw_mid
 
-## Sizing rules (use these as a starting point, reason freely)
+## Sizing rules
 
 - |edge| < 5pp              -> do not bet
-- |edge| 5-15pp             -> $1-2
-- |edge| > 15pp             -> $3-5 (cap $5)
+- |edge| 5-10pp             -> 2% of current bankroll
+- |edge| 10-20pp            -> 4% of current bankroll  
+- |edge| > 20pp             -> 6% of current bankroll
+- Hard cap: $10 per bet (never exceed this regardless)
 - confidence low            -> halve the size
-- confidence high           -> can go up to 1.5x (still cap $5)
-- never bet more than 5% of current bankroll
-- if recent performance is poor (losing streak) -> be more conservative
+- confidence high           -> can go up to 1.25x (still respect hard cap)
+
+## Performance multipliers
+
+- Win rate > 60% last 10 bets  -> can go up to 8% of bankroll (cap $10)
+- Win rate > 70% last 10 bets  -> can go up to 10% of bankroll (cap $15)
+- Losing streak 3+             -> drop to 1% of bankroll until streak ends
+- Bankroll down 20%+           -> 1% only until recovered
 
 ## Limit price
 
