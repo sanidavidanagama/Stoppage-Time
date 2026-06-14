@@ -39,8 +39,9 @@ def _get_client() -> genai.Client:
 
 _BET_MANAGER_PROMPT_PATH = Path(__file__).parent / "prompts" / "bet_manager_prompt.md"
 
-def _load_bet_manager_prompt() -> str:
-    return _BET_MANAGER_PROMPT_PATH.read_text(encoding="utf-8")
+def _load_bet_manager_prompt(ltm_context: str = "") -> str:
+    prompt = _BET_MANAGER_PROMPT_PATH.read_text(encoding="utf-8")
+    return prompt.replace("{ltm_context}", ltm_context or "No past performance data available.")
 
 # --- Main call ---------------------------------------------------------------
 
@@ -68,14 +69,14 @@ def decide(
     ltm      = get_ltm_context(ml_market_gap=None)
 
     payload = {
-        "prediction":          prediction,
-        "live_prices":         live_prices,
-        "home_code":           home_code,
-        "away_code":           away_code,
-        "current_balance":     bankroll["current_balance"],
-        "recent_performance":  ltm,
+        "prediction":      prediction,
+        "live_prices":     live_prices,
+        "home_code":       home_code,
+        "away_code":       away_code,
+        "current_balance": bankroll["current_balance"],
     }
-    prompt_snapshot = _build_prompt_snapshot(payload)
+    system_prompt    = _load_bet_manager_prompt(ltm_context=ltm)
+    prompt_snapshot  = _build_prompt_snapshot(payload, system_prompt)
 
     try:
         client   = _get_client()
@@ -83,7 +84,7 @@ def decide(
             model    = settings.GEMINI_MODEL,
             contents = json.dumps(payload, default=str),
             config   = types.GenerateContentConfig(
-                system_instruction = _load_bet_manager_prompt(),
+                system_instruction = system_prompt,
                 max_output_tokens  = 600,
                 thinking_config    = types.ThinkingConfig(
                     include_thoughts = True,
@@ -153,10 +154,10 @@ def _extract_thinking(response) -> str:
     return "\n".join(parts)
 
 
-def _build_prompt_snapshot(payload: dict) -> str:
+def _build_prompt_snapshot(payload: dict, system_prompt: str) -> str:
     return (
         "# System Prompt\n\n"
-        + _load_bet_manager_prompt()
+        + system_prompt
         + "\n\n# User Payload\n\n```json\n"
         + json.dumps(payload, indent=2, default=str)
         + "\n```\n"
