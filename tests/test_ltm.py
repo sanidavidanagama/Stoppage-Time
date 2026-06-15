@@ -161,7 +161,7 @@ def test_update_outcome_won():
     bet_id = _make_bet(predicted_outcome="home")
     update_outcome(bet_id, "home", pnl=1.5)
     bets = get_recent_bets(limit=1)
-    assert bets[0]["won"] == 1
+    assert bets[0]["won"] == "won"
     assert bets[0]["pnl"] == 1.5
     assert bets[0]["actual_outcome"] == "home"
 
@@ -170,7 +170,7 @@ def test_update_outcome_lost():
     bet_id = _make_bet(predicted_outcome="home")
     update_outcome(bet_id, "away", pnl=-2.0)
     bets = get_recent_bets(limit=1)
-    assert bets[0]["won"] == 0
+    assert bets[0]["won"] == "lost"
     assert bets[0]["pnl"] == -2.0
 
 
