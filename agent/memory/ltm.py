@@ -74,7 +74,7 @@ def save_bet(
     Returns the bet id.
     """
     bet_id = str(uuid.uuid4())
-    _client().table("bets").insert({
+    record: dict = {
         "id":                bet_id,
         "session_id":        session_id,
         "created_at":        _now(),
@@ -106,7 +106,12 @@ def save_bet(
         "rationale":         rationale,
         "home_code":         home_code,
         "away_code":         away_code,
-    }).execute()
+    }
+    if not should_bet:
+        record["won"] = "no_bet"
+        record["actual_outcome"] = "skip"
+        record["bet_outcome"] = "skip"
+    _client().table("bets").insert(record).execute()
     return bet_id
 
 
@@ -123,7 +128,7 @@ def update_outcome(bet_id: str, actual_outcome: str, pnl: float) -> None:
     res = _client().table("bets").select("predicted_outcome").eq("id", bet_id).execute()
     if not res.data:
         return
-    won = 1 if res.data[0]["predicted_outcome"] == actual_outcome else 0
+    won = "won" if res.data[0]["predicted_outcome"] == actual_outcome else "lost"
     _client().table("bets").update({
         "actual_outcome": actual_outcome,
         "pnl":            pnl,
@@ -162,7 +167,7 @@ def get_similar_bets(
     rows = [
         r for r in (res.data or [])
         if r.get("ml_market_gap") is not None
-        and r.get("won") is not None
+        and r.get("won") in ("won", "lost")
         and abs(r["ml_market_gap"] - ml_market_gap) <= gap_tolerance
     ]
     rows.sort(key=lambda r: r["created_at"], reverse=True)
@@ -181,7 +186,7 @@ def get_agent_stats() -> dict | None:
 
     resolved    = [r for r in rows if r.get("won") is not None]
     total_bets  = len(rows)
-    winning_bets = sum(1 for r in resolved if r["won"] == 1)
+    winning_bets = sum(1 for r in resolved if r["won"] == "won")
     total_pnl   = sum(r["pnl"] or 0.0 for r in resolved)
     win_rate    = winning_bets / len(resolved) if resolved else 0.0
     edges       = [r["edge_pp"] for r in rows if r.get("edge_pp") is not None]
@@ -227,7 +232,7 @@ def get_ltm_context(ml_market_gap: float | None = None) -> str:
     if recent:
         lines.append("Last 5 bets:")
         for b in recent:
-            won_str = {1: "WON", 0: "LOST", None: "PENDING"}.get(b["won"], "?")
+            won_str = {"won": "WON", "lost": "LOST", "no_bet": "NO BET", None: "PENDING"}.get(b["won"], "?")
             size    = f"${b['bet_size_usdc']:.2f}" if b["bet_size_usdc"] else "skip"
             lines.append(
                 f"  {b['fixture_name']} | predicted={b['predicted_outcome']} "
@@ -243,7 +248,7 @@ def get_ltm_context(ml_market_gap: float | None = None) -> str:
                 f"Past bets with similar ML/market gap (~{ml_market_gap:.0f}pp):"
             )
             for b in similar:
-                won_str = {1: "WON", 0: "LOST"}.get(b["won"], "?")
+                won_str = {"won": "WON", "lost": "LOST"}.get(b["won"], "?")
                 lines.append(
                     f"  {b['fixture_name']} | {won_str} | "
                     f"P&L={b['pnl']:+.2f}"
@@ -293,7 +298,7 @@ def get_balance_map(starting_balance: float = 100.0) -> dict:
         size          = row["bet_size_usdc"] or 0.0
         balance_after = round(balance - size, 2)
         result[row["id"]] = balance_after
-        if row.get("won") is not None:
+        if row.get("won") in ("won", "lost"):
             balance = round(balance_after + size + (row["pnl"] or 0.0), 2)
         else:
             balance = balance_after
@@ -327,8 +332,8 @@ def get_bankroll_summary(starting_balance: float = 100.0) -> dict:
     pnl_values    = [r["pnl"] for r in rows if r.get("pnl") is not None]
     total_pnl     = sum(pnl_values)
     largest_loss  = min(pnl_values) if pnl_values else 0.0
-    wins          = sum(1 for r in rows if r.get("won") == 1)
-    losses        = sum(1 for r in rows if r.get("won") == 0)
+    wins          = sum(1 for r in rows if r.get("won") == "won")
+    losses        = sum(1 for r in rows if r.get("won") == "lost")
 
     current_balance = round(starting_balance + total_pnl, 2)
     peak_balance    = max(starting_balance, current_balance)

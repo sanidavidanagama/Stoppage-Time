@@ -15,7 +15,9 @@ router = APIRouter(tags=["bets"], dependencies=[Depends(get_current_user)])
 def _derive_result(won) -> str:
     if won is None:
         return "pending"
-    return "won" if won == 1 else "lost"
+    if won == "no_bet":
+        return "no_bet"
+    return "won" if won == "won" else "lost"
 
 
 def _market_price_for_prediction(row: dict) -> float | None:
