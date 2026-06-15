@@ -17,18 +17,23 @@ async def public_stats():
 
     sb = create_client(settings.ST_SUPABASE_URL, settings.ST_SUPABASE_SECRET_KEY)
 
-    running = sb.table("match_queue").select("id").eq("status", "running").execute()
-    agent_status = "active" if running.data else "inactive"
+    agent_status = "inactive"
+    next_scheduled_run = None
+    try:
+        running = sb.table("match_queue").select("id").eq("status", "running").execute()
+        agent_status = "active" if running.data else "inactive"
 
-    pending = (
-        sb.table("match_queue")
-        .select("scheduled_run_time")
-        .eq("status", "pending")
-        .order("scheduled_run_time")
-        .limit(1)
-        .execute()
-    )
-    next_scheduled_run = pending.data[0]["scheduled_run_time"] if pending.data else None
+        pending = (
+            sb.table("match_queue")
+            .select("scheduled_run_time")
+            .eq("status", "pending")
+            .order("scheduled_run_time")
+            .limit(1)
+            .execute()
+        )
+        next_scheduled_run = pending.data[0]["scheduled_run_time"] if pending.data else None
+    except Exception:
+        pass  # match_queue table not yet created — return defaults
 
     return {
         "bets_won": stats["winning_bets"] if stats else 0,

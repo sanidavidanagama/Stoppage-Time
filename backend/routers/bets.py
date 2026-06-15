@@ -73,31 +73,31 @@ async def extended_stats():
     )
     highest_profit = profit_res.data[0]["pnl"] if profit_res.data else 0.0
 
-    # agent status + next run
-    running = sb.table("match_queue").select("id").eq("status", "running").execute()
-    agent_status = "active" if running.data else "inactive"
-
-    pending = (
-        sb.table("match_queue")
-        .select("scheduled_run_time")
-        .eq("status", "pending")
-        .order("scheduled_run_time")
-        .limit(1)
-        .execute()
-    )
-
+    # agent status + next run (graceful if match_queue table not yet created)
+    agent_status = "inactive"
     next_run_seconds = None
     next_run_human = None
-    if pending.data:
-        try:
+    try:
+        running = sb.table("match_queue").select("id").eq("status", "running").execute()
+        agent_status = "active" if running.data else "inactive"
+
+        pending = (
+            sb.table("match_queue")
+            .select("scheduled_run_time")
+            .eq("status", "pending")
+            .order("scheduled_run_time")
+            .limit(1)
+            .execute()
+        )
+        if pending.data:
             dt = datetime.fromisoformat(
                 pending.data[0]["scheduled_run_time"].replace("Z", "+00:00")
             )
             secs = max(0, int((dt - datetime.now(timezone.utc)).total_seconds()))
             next_run_seconds = secs
             next_run_human = _format_next_run_human(secs)
-        except (ValueError, TypeError):
-            pass
+    except Exception:
+        pass  # match_queue table not yet created — return defaults
 
     return {
         "total_bets": stats["total_bets"] if stats else 0,
@@ -130,21 +130,33 @@ async def list_bets(
 
     sb = create_client(settings.ST_SUPABASE_URL, settings.ST_SUPABASE_SECRET_KEY)
 
+    def _apply_filter(q):
+        if status == "active":
+            return q.eq("should_bet", 1).is_("won", "null")
+        if status == "resolved":
+            return q.eq("should_bet", 1).not_.is_("won", "null")
+        if status == "no_bet":
+            return q.eq("should_bet", 0)
+        return q
+
+    # Get total count cheaply before attempting range
+    total = _apply_filter(
+        sb.table("bets").select("id", count="exact")
+    ).execute().count or 0
+
+    offset = (page - 1) * per_page
+    total_pages = -(-total // per_page) if total else 0
+
+    if total == 0 or offset >= total:
+        return {"data": [], "total": total, "page": page, "per_page": per_page, "total_pages": total_pages}
+
     cols = (
         "id,home_team,away_team,won,pnl,predicted_outcome,"
         "pm_home_prob,pm_away_prob,pm_draw_prob,edge_pp,bet_size_usdc,actual_outcome"
     )
-    query = sb.table("bets").select(cols, count="exact").order("created_at", desc=True)
-
-    if status == "active":
-        query = query.eq("should_bet", 1).is_("won", "null")
-    elif status == "resolved":
-        query = query.eq("should_bet", 1).not_.is_("won", "null")
-    elif status == "no_bet":
-        query = query.eq("should_bet", 0)
-
-    offset = (page - 1) * per_page
-    res = query.range(offset, offset + per_page - 1).execute()
+    res = _apply_filter(
+        sb.table("bets").select(cols).order("created_at", desc=True)
+    ).range(offset, offset + per_page - 1).execute()
 
     rows = []
     for row in (res.data or []):
@@ -161,13 +173,12 @@ async def list_bets(
             "actual_outcome": row.get("actual_outcome"),
         })
 
-    total = res.count or 0
     return {
         "data": rows,
         "total": total,
         "page": page,
         "per_page": per_page,
-        "total_pages": -(-total // per_page) if total else 0,
+        "total_pages": total_pages,
     }
 
 

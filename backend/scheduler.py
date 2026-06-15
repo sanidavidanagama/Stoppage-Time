@@ -36,15 +36,19 @@ async def _poll_queue() -> None:
     sb = create_client(settings.ST_SUPABASE_URL, settings.ST_SUPABASE_SECRET_KEY)
     now_iso = datetime.now(timezone.utc).isoformat()
 
-    res = (
-        sb.table("match_queue")
-        .select("*")
-        .eq("status", "pending")
-        .lte("scheduled_run_time", now_iso)
-        .execute()
-    )
-    rows = res.data or []
+    try:
+        res = (
+            sb.table("match_queue")
+            .select("*")
+            .eq("status", "pending")
+            .lte("scheduled_run_time", now_iso)
+            .execute()
+        )
+    except Exception as exc:
+        logger.warning(f"match_queue not available yet: {exc}")
+        return
 
+    rows = res.data or []
     for row in rows:
         asyncio.create_task(_run_queue_entry(sb, row))
 
