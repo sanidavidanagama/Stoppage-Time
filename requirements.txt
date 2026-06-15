@@ -1,19 +1,13 @@
-# Runtime dependencies for worldcup-arena-sample-agent.ipynb
-# All other modules used by the notebook (os, json, time, uuid, re) are part
-# of the Python 3.11 standard library and need no installation.
-
-# HTTP client for the Stair AI arena proxies (Sportmonks, Polymarket, Supabase).
-requests>=2.32,<3
-
-# Anthropic SDK. The notebook uses extended thinking (the `thinking=` parameter)
-# and the Claude Haiku 4.5 model, both of which require a recent SDK.
-anthropic>=0.40,<1
-
-# To run the notebook itself:
-jupyter>=1.0
-
-# --- Optional: alternative LLM providers -------------------------------------
-# The notebook uses Anthropic by default. Install only the one you plan to use,
-# then follow the "uncomment" instructions in the Setup and LLM cells.
-# google-genai>=1.0     # Google Gemini
-# openai>=1.0           # OpenAI  (also used for DeepSeek via base_url override)
+feedparser>=6.0.12
+google-genai>=2.8.0
+pandas>=3.0.3
+pydantic-settings>=2.14.1
+pytest>=9.0.3
+python-dotenv>=1.2.2
+requests>=2.34.2
+supabase>=2.31.0
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+python-jose[cryptography]>=3.3.0
+apscheduler>=3.10.4
+python-multipart>=0.0.12
