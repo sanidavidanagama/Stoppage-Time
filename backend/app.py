@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
-from backend.routers import auth, bets, public, queue
+from backend.routers import auth, bets, logs, public, queue
 from backend.scheduler import start_scheduler, stop_scheduler
 
 
@@ -39,6 +39,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix="/auth")
     app.include_router(public.router, prefix="/api/public")
     app.include_router(bets.router, prefix="/api")
+    app.include_router(logs.router, prefix="/api")
     app.include_router(queue.router, prefix="/api")
 
     return app

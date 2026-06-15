@@ -238,7 +238,7 @@ Full details for a single bet.
 
 ### GET `/api/bets/{bet_id}/logs`
 
-All reasoning logs for a match, structured by log type. There are 6 log types per match. `reasoning_prompt` and `reasoning_response` may have multiple rounds (up to `MAX_TOOL_ROUNDS`).
+All reasoning logs for a match via its bet ID. Convenience shortcut — delegates to `GET /api/logs/{session_id}` internally.
 
 **Response `200`**
 
@@ -255,6 +255,95 @@ All reasoning logs for a match, structured by log type. There are 6 log types pe
     "bet_response":       [{ "round": 1, "content": "..." }]
   }
 }
+```
+
+---
+
+## Log Endpoints (Protected)
+
+These endpoints let you browse and manage logs **directly by session**, without needing a `bet_id`. This is the primary way to access logs for runs where no bet was placed (`should_bet=0`) or where the agent crashed before saving a bet record.
+
+---
+
+### GET `/api/logs`
+
+List every session that has log entries, most recent first. Includes sessions with no bet placed.
+
+**Response `200`**
+
+```json
+[
+  {
+    "session_id": "prematch:19609162",
+    "fixture_name": "Spain vs Cape Verde Islands",
+    "created_at": "2026-06-15T12:09:10+00:00",
+    "log_types": ["bet_prompt", "bet_response", "reasoning_prompt", "reasoning_response", "tactics_prompt", "tactics_response"],
+    "log_count": 6,
+    "has_bet": true,
+    "bet_placed": false,
+    "bet_id": "078ccf7b-..."
+  }
+]
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `session_id` | string | Session identifier, format `prematch:{fixture_id}` |
+| `fixture_name` | string | Human-readable match name |
+| `log_types` | string[] | Log types present for this session |
+| `log_count` | int | Number of distinct log types recorded |
+| `has_bet` | bool | `true` if a bet record exists in the `bets` table |
+| `bet_placed` | bool | `true` if `should_bet=1` (an actual order was attempted) |
+| `bet_id` | UUID \| null | Linked bet record ID, or null if none |
+
+---
+
+### GET `/api/logs/{session_id}`
+
+Fetch all logs for a session directly by `session_id`. Works even when no bet was placed.
+
+**Path Parameter**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `session_id` | string | URL-encode the colon: `prematch%3A19609162` |
+
+**Response `200`**
+
+```json
+{
+  "session_id": "prematch:19609162",
+  "bet_id": "078ccf7b-...",
+  "bet_placed": false,
+  "logs": {
+    "tactics_prompt":     [{ "round": 1, "content": "..." }],
+    "tactics_response":   [{ "round": 1, "content": "..." }],
+    "reasoning_prompt":   [{ "round": 1, "content": "..." }],
+    "reasoning_response": [{ "round": 1, "content": "..." }],
+    "bet_prompt":         [{ "round": 1, "content": "..." }],
+    "bet_response":       [{ "round": 1, "content": "..." }]
+  }
+}
+```
+
+**Response `404`**
+```json
+{ "detail": "No logs found for this session" }
+```
+
+---
+
+### DELETE `/api/logs/{session_id}`
+
+Delete all log rows for a session. Does **not** delete the corresponding bet record.
+
+**Path Parameter** — same as `GET /api/logs/{session_id}`, URL-encode the colon.
+
+**Response `204`** — no content.
+
+**Response `404`**
+```json
+{ "detail": "No logs found for this session" }
 ```
 
 ---

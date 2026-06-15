@@ -202,20 +202,11 @@ async def get_bet(bet_id: str):
 # GET /api/bets/{bet_id}/logs
 # ---------------------------------------------------------------------------
 
-LOG_TYPES = [
-    "tactics_prompt",
-    "tactics_response",
-    "reasoning_prompt",
-    "reasoning_response",
-    "bet_prompt",
-    "bet_response",
-]
-
-
 @router.get("/bets/{bet_id}/logs")
 async def get_bet_logs(bet_id: str):
     from config import settings
     from supabase import create_client
+    from backend.routers.logs import fetch_logs_by_session
 
     sb = create_client(settings.ST_SUPABASE_URL, settings.ST_SUPABASE_SECRET_KEY)
 
@@ -224,20 +215,7 @@ async def get_bet_logs(bet_id: str):
         raise HTTPException(status_code=404, detail="Bet not found")
 
     session_id = bet_res.data[0]["session_id"]
-
-    logs_res = (
-        sb.table("logs")
-        .select("log_type,round,content")
-        .eq("session_id", session_id)
-        .order("round")
-        .execute()
-    )
-
-    structured: dict = {lt: [] for lt in LOG_TYPES}
-    for row in (logs_res.data or []):
-        lt = row.get("log_type")
-        if lt in structured:
-            structured[lt].append({"round": row["round"], "content": row["content"]})
+    structured = fetch_logs_by_session(sb, session_id)
 
     return {
         "bet_id": bet_id,
