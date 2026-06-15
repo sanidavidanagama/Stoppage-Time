@@ -6,6 +6,7 @@ Entry point for Stoppage Time.
 Local:          uv run main.py          → interactive CLI menu
 GitHub Actions: uv run main.py          → auto mode (check upcoming fixture)
 Manual run:     uv run main.py "Spain" "Morocco"  → run specific fixture
+Backend:        uv run main.py serve    → start FastAPI server
 """
 
 import os
@@ -13,6 +14,17 @@ import sys
 
 
 def main() -> None:
+    # start FastAPI backend server
+    if len(sys.argv) == 2 and sys.argv[1] == "serve":
+        import uvicorn
+        uvicorn.run(
+            "backend.main:app",
+            host="0.0.0.0",
+            port=int(os.getenv("PORT", 8000)),
+            workers=1,
+        )
+        return
+
     # manual fixture override to work both locally and in CI
     if len(sys.argv) == 3:
         from agent.orchestrator import run
