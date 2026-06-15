@@ -37,7 +37,7 @@ async def public_stats():
 
     return {
         "bets_won": stats["winning_bets"] if stats else 0,
-        "bets_lost": (stats["total_bets"] - stats["winning_bets"]) if stats else 0,
+        "bets_lost": stats["losing_bets"] if stats else 0,
         "win_rate": round(stats["win_rate"] * 100, 1) if stats else 0.0,
         "total_pnl": bankroll["total_pnl"],
         "current_balance": bankroll["current_balance"],

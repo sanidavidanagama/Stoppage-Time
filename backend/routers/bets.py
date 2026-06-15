@@ -15,8 +15,8 @@ router = APIRouter(tags=["bets"], dependencies=[Depends(get_current_user)])
 def _derive_result(won) -> str:
     if won is None:
         return "pending"
-    if won == "no_bet":
-        return "no_bet"
+    if won == "skip":
+        return "skip"
     return "won" if won == "won" else "lost"
 
 
@@ -59,8 +59,8 @@ async def extended_stats():
 
     sb = create_client(settings.ST_SUPABASE_URL, settings.ST_SUPABASE_SECRET_KEY)
 
-    # skipped bets (should_bet=0)
-    skipped_res = sb.table("bets").select("id", count="exact").eq("should_bet", 0).execute()
+    # skipped bets (won="skip")
+    skipped_res = sb.table("bets").select("id", count="exact").eq("won", "skip").execute()
     skipped_bets = skipped_res.count or 0
 
     # highest profit
@@ -104,7 +104,7 @@ async def extended_stats():
     return {
         "total_bets": stats["total_bets"] if stats else 0,
         "bets_won": stats["winning_bets"] if stats else 0,
-        "bets_lost": (stats["total_bets"] - stats["winning_bets"]) if stats else 0,
+        "bets_lost": stats["losing_bets"] if stats else 0,
         "skipped_bets": skipped_bets,
         "win_percentage": round(stats["win_rate"] * 100, 1) if stats else 0.0,
         "total_pnl": bankroll["total_pnl"],
@@ -138,7 +138,7 @@ async def list_bets(
         if status == "resolved":
             return q.eq("should_bet", 1).not_.is_("actual_outcome", "null")
         if status == "no_bet":
-            return q.eq("won", "no_bet")
+            return q.eq("won", "skip")
         return q
 
     # Get total count cheaply before attempting range

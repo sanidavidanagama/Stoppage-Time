@@ -108,9 +108,11 @@ def save_bet(
         "away_code":         away_code,
     }
     if not should_bet:
-        record["won"] = "no_bet"
+        record["won"] = "skip"
         record["actual_outcome"] = "skip"
         record["bet_outcome"] = "skip"
+        record["bet_size_usdc"] = 0
+        record["pnl"] = 0
     _client().table("bets").insert(record).execute()
     return bet_id
 
@@ -184,17 +186,19 @@ def get_agent_stats() -> dict | None:
     if not rows:
         return None
 
-    resolved    = [r for r in rows if r.get("won") is not None]
-    total_bets  = len(rows)
+    resolved     = [r for r in rows if r.get("won") in ("won", "lost")]
+    total_bets   = len(resolved)
     winning_bets = sum(1 for r in resolved if r["won"] == "won")
-    total_pnl   = sum(r["pnl"] or 0.0 for r in resolved)
-    win_rate    = winning_bets / len(resolved) if resolved else 0.0
-    edges       = [r["edge_pp"] for r in rows if r.get("edge_pp") is not None]
-    avg_edge_pp = sum(edges) / len(edges) if edges else 0.0
+    losing_bets  = total_bets - winning_bets
+    total_pnl    = sum(r["pnl"] or 0.0 for r in resolved)
+    win_rate     = winning_bets / total_bets if total_bets else 0.0
+    edges        = [r["edge_pp"] for r in rows if r.get("edge_pp") is not None]
+    avg_edge_pp  = sum(edges) / len(edges) if edges else 0.0
 
     return {
         "total_bets":   total_bets,
         "winning_bets": winning_bets,
+        "losing_bets":  losing_bets,
         "total_pnl":    total_pnl,
         "win_rate":     win_rate,
         "avg_edge_pp":  avg_edge_pp,
@@ -232,7 +236,7 @@ def get_ltm_context(ml_market_gap: float | None = None) -> str:
     if recent:
         lines.append("Last 5 bets:")
         for b in recent:
-            won_str = {"won": "WON", "lost": "LOST", "no_bet": "NO BET", None: "PENDING"}.get(b["won"], "?")
+            won_str = {"won": "WON", "lost": "LOST", "skip": "SKIP", None: "PENDING"}.get(b["won"], "?")
             size    = f"${b['bet_size_usdc']:.2f}" if b["bet_size_usdc"] else "skip"
             lines.append(
                 f"  {b['fixture_name']} | predicted={b['predicted_outcome']} "
