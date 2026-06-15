@@ -15,8 +15,8 @@ router = APIRouter(tags=["bets"], dependencies=[Depends(get_current_user)])
 def _derive_result(won) -> str:
     if won is None:
         return "pending"
-    if won == "skip":
-        return "skip"
+    if won == "no_bet":
+        return "no_bet"
     return "won" if won == "won" else "lost"
 
 
@@ -59,8 +59,8 @@ async def extended_stats():
 
     sb = create_client(settings.ST_SUPABASE_URL, settings.ST_SUPABASE_SECRET_KEY)
 
-    # skipped bets (won="skip")
-    skipped_res = sb.table("bets").select("id", count="exact").eq("won", "skip").execute()
+    # skipped bets (won="no_bet")
+    skipped_res = sb.table("bets").select("id", count="exact").eq("won", "no_bet").execute()
     skipped_bets = skipped_res.count or 0
 
     # highest profit
@@ -138,7 +138,7 @@ async def list_bets(
         if status == "resolved":
             return q.eq("should_bet", 1).not_.is_("actual_outcome", "null")
         if status == "no_bet":
-            return q.eq("won", "skip")
+            return q.eq("won", "no_bet")
         return q
 
     # Get total count cheaply before attempting range
@@ -166,7 +166,7 @@ async def list_bets(
             "id": row["id"],
             "home": row["home_team"],
             "away": row["away_team"],
-            "result": _derive_result(row.get("won")),
+            "result": row.get("won"),
             "pnl": row.get("pnl"),
             "agent_prediction": row.get("predicted_outcome"),
             "market_price": _market_price_for_prediction(row),

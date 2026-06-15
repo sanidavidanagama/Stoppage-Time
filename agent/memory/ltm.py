@@ -108,7 +108,7 @@ def save_bet(
         "away_code":         away_code,
     }
     if not should_bet:
-        record["won"] = "skip"
+        record["won"] = "no_bet"
         record["actual_outcome"] = "skip"
         record["bet_outcome"] = "skip"
         record["bet_size_usdc"] = 0
@@ -236,7 +236,7 @@ def get_ltm_context(ml_market_gap: float | None = None) -> str:
     if recent:
         lines.append("Last 5 bets:")
         for b in recent:
-            won_str = {"won": "WON", "lost": "LOST", "skip": "SKIP", None: "PENDING"}.get(b["won"], "?")
+            won_str = {"won": "WON", "lost": "LOST", "no_bet": "NO BET", None: "PENDING"}.get(b["won"], "?")
             size    = f"${b['bet_size_usdc']:.2f}" if b["bet_size_usdc"] else "skip"
             lines.append(
                 f"  {b['fixture_name']} | predicted={b['predicted_outcome']} "
