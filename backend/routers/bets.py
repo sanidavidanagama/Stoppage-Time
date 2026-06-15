@@ -134,11 +134,11 @@ async def list_bets(
 
     def _apply_filter(q):
         if status == "active":
-            return q.eq("should_bet", 1).is_("won", "null")
+            return q.eq("should_bet", 1).is_("actual_outcome", "null")
         if status == "resolved":
-            return q.eq("should_bet", 1).not_.is_("won", "null")
+            return q.eq("should_bet", 1).not_.is_("actual_outcome", "null")
         if status == "no_bet":
-            return q.eq("should_bet", 0)
+            return q.eq("won", "no_bet")
         return q
 
     # Get total count cheaply before attempting range
