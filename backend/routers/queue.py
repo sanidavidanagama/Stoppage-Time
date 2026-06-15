@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from backend.auth import get_current_user
@@ -38,9 +38,19 @@ def _add_countdowns(entry: dict) -> dict:
 # GET /api/queue
 # ---------------------------------------------------------------------------
 
+def _queue_unavailable(exc: Exception) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail=f"match_queue table not accessible: {exc}",
+    )
+
+
 @router.get("/queue")
 async def list_queue():
-    res = _sb().table("match_queue").select("*").order("scheduled_run_time").execute()
+    try:
+        res = _sb().table("match_queue").select("*").order("scheduled_run_time").execute()
+    except Exception as exc:
+        raise _queue_unavailable(exc)
     return [_add_countdowns(e) for e in (res.data or [])]
 
 
@@ -59,13 +69,16 @@ async def add_to_queue(body: QueueEntry):
     kickoff_dt = datetime.fromisoformat(body.kickoff_time.replace("Z", "+00:00"))
     scheduled_dt = kickoff_dt - timedelta(minutes=45)
 
-    res = _sb().table("match_queue").insert({
-        "home_team": body.home_team,
-        "away_team": body.away_team,
-        "kickoff_time": kickoff_dt.isoformat(),
-        "scheduled_run_time": scheduled_dt.isoformat(),
-        "status": "pending",
-    }).execute()
+    try:
+        res = _sb().table("match_queue").insert({
+            "home_team": body.home_team,
+            "away_team": body.away_team,
+            "kickoff_time": kickoff_dt.isoformat(),
+            "scheduled_run_time": scheduled_dt.isoformat(),
+            "status": "pending",
+        }).execute()
+    except Exception as exc:
+        raise _queue_unavailable(exc)
 
     return _add_countdowns(res.data[0])
 
@@ -77,7 +90,10 @@ async def add_to_queue(body: QueueEntry):
 @router.delete("/queue/{entry_id}", status_code=204)
 async def remove_from_queue(entry_id: str):
     sb = _sb()
-    res = sb.table("match_queue").select("status").eq("id", entry_id).execute()
+    try:
+        res = sb.table("match_queue").select("status").eq("id", entry_id).execute()
+    except Exception as exc:
+        raise _queue_unavailable(exc)
     if not res.data:
         raise HTTPException(status_code=404, detail="Queue entry not found")
     if res.data[0]["status"] == "running":
