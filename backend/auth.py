@@ -4,17 +4,17 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 
-from backend.config import backend_settings
+from config import settings
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
 def create_access_token(sub: str) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(days=backend_settings.JWT_EXPIRE_DAYS)
+    expire = datetime.now(timezone.utc) + timedelta(days=settings.JWT_EXPIRE_DAYS)
     return jwt.encode(
         {"sub": sub, "exp": expire},
-        backend_settings.JWT_SECRET_KEY,
-        algorithm=backend_settings.JWT_ALGORITHM,
+        settings.JWT_SECRET_KEY,
+        algorithm=settings.JWT_ALGORITHM,
     )
 
 
@@ -22,8 +22,8 @@ def verify_token(token: str) -> str:
     try:
         payload = jwt.decode(
             token,
-            backend_settings.JWT_SECRET_KEY,
-            algorithms=[backend_settings.JWT_ALGORITHM],
+            settings.JWT_SECRET_KEY,
+            algorithms=[settings.JWT_ALGORITHM],
         )
         sub: str = payload.get("sub")
         if sub is None:

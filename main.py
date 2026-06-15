@@ -18,7 +18,7 @@ def main() -> None:
     if len(sys.argv) == 2 and sys.argv[1] == "serve":
         import uvicorn
         uvicorn.run(
-            "backend.main:app",
+            "backend.app:app",
             host="0.0.0.0",
             port=int(os.getenv("PORT", 8000)),
             workers=1,

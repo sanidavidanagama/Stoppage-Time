@@ -3,7 +3,6 @@ config.py
 
 Central settings using pydantic-settings.
 Loads from .env automatically.
-Only two secrets needed: ARENA_KEY and GEMINI_API_KEY.
 """
 
 from pydantic import ConfigDict
@@ -57,10 +56,23 @@ class Settings(BaseSettings):
     LEDGER_SCHEMA_VERSION: str = "0.3"
 
     # --- Agent behaviour ---
-    DEBUG:           bool  = False   # set to False for production
+    DEBUG:           bool  = False
     MAX_TOOL_ROUNDS: int   = 4
     MAX_BET_SIZE:    float = 15.0
     MIN_EDGE_PP:     float = 5.0
+
+    # --- Backend auth ---
+    ADMIN_USERNAME:  str = "admin"
+    ADMIN_PASSWORD:  str = "changeme"
+    JWT_SECRET_KEY:  str = "changeme-set-a-real-secret-in-env"
+    JWT_ALGORITHM:   str = "HS256"
+    JWT_EXPIRE_DAYS: int = 7
+    # Comma-separated string — split with allowed_origins_list property
+    ALLOWED_ORIGINS: str = "*"
+
+    @property
+    def allowed_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.ALLOWED_ORIGINS.split(",")]
 
     # --- Headers ---
     @property
