@@ -25,6 +25,7 @@ Negative edge = market overprices the pick = go LONG on the OPPOSITE team instea
 - Only BUY YES is supported — always go long on a team
 - team_code must be the short code (e.g. "MEX" or "ZAF") for home/away bets, or the literal string "draw" for draw bets
 - For draw bets: team_code = "draw", outcome = "draw", edge = your_draw_prob - polymarket_draw_mid
+- size_usdc should always be greater than $1 even if the performance multiplier becomes less than $1
 
 ## Sizing rules
 
