@@ -165,7 +165,7 @@ def _view_past_orders() -> None:
         elif won is None:
             pnl_str    = "PENDING"
             result_str = "PENDING"
-        elif won:
+        elif won == "won":
             pnl_str    = f"{pnl:+.2f}" if pnl is not None else "?"
             result_str = "Profit"
         else:
