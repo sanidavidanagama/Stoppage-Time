@@ -1,5 +1,5 @@
 """
-config.py
+settings.py
 
 Central settings using pydantic-settings.
 Loads from .env automatically.
@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     # --- Secrets (from .env) ---
     ARENA_KEY:      str
     GEMINI_API_KEY: str
+    SERP_API_KEY: str
 
     # --- Arena ---
     ARENA: str = "https://stair-ai.com"
