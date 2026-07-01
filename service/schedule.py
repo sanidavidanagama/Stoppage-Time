@@ -53,6 +53,64 @@ def fetch_schedule() -> dict:
     return _schedule_cache
 
 
+def find_fixture_by_teams(
+    home_name: str,
+    away_name: str,
+    schedule: list[dict] | None = None,
+) -> dict | None:
+    """
+    Resolve human-readable team names (e.g. "Paraguay", "France") to a
+    Sportmonks fixture_id plus both teams' participant IDs.
+
+    Name matching is case-insensitive substring match against the fixture's
+    "name" field (e.g. "Paraguay vs France").
+
+    Args:
+        home_name: Home team name.
+        away_name: Away team name.
+        schedule: Optional pre-fetched schedule. If None, fetches (cached).
+
+    Returns:
+        {
+            "fixture_id": int,
+            "name": str,
+            "kickoff": str,
+            "kickoff_timestamp": int,
+            "home": {"team_id": int, "name": str},
+            "away": {"team_id": int, "name": str},
+        }
+        or None if no match found.
+    """
+    if schedule is None:
+        schedule = fetch_schedule()
+
+    all_fixtures = _flatten_fixtures(schedule)
+
+    for fix in all_fixtures:
+        if fix.get("placeholder", False):
+            continue
+
+        name = fix.get("name", "")
+        if home_name.lower() not in name.lower() or away_name.lower() not in name.lower():
+            continue
+
+        participants = fix.get("participants", [])
+        home_p = next((p for p in participants if p.get("meta", {}).get("location") == "home"), None)
+        away_p = next((p for p in participants if p.get("meta", {}).get("location") == "away"), None)
+        if not home_p or not away_p:
+            continue
+
+        return {
+            "fixture_id":        fix["id"],
+            "name":              name,
+            "kickoff":           fix.get("starting_at"),
+            "kickoff_timestamp": fix.get("starting_at_timestamp"),
+            "home": {"team_id": home_p["id"], "name": home_p.get("name", home_name)},
+            "away": {"team_id": away_p["id"], "name": away_p.get("name", away_name)},
+        }
+
+    return None
+
 def clear_schedule_cache():
     """Clear the cached schedule (useful for testing)."""
     global _schedule_cache
