@@ -12,7 +12,7 @@ from __future__ import annotations
 import httpx
 
 from config.settings import settings
-from service.formatter import format_match_long, format_match_short, format_form_summary
+from service.past_match_formatter import format_match_long, format_match_short, format_form_summary
 
 
 # ─── Module-level cache ──────────────────────────────────────────────────────
