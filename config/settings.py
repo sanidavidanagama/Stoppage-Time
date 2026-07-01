@@ -17,14 +17,15 @@ class Settings(BaseSettings):
     )
 
     # --- Secrets (from .env) ---
-    ARENA_KEY:      str
-    GEMINI_API_KEY: str
-    SERP_API_KEY: str
+    ARENA_KEY:         str
+    GEMINI_API_KEY:    str
+    SERP_API_KEY:      str
+    ANTHROPIC_API_KEY: str
 
     # --- Arena ---
     ARENA: str = "https://stair-ai.com"
     AGENT_ID: str = "18161beb-b5f5-464d-ad1b-8ae2d9323fbc"
-    
+
     @property
     def SPORTMONKS_PROXY(self) -> str:
         return f"{self.ARENA}/api/v1/data/proxy/sportmonks/v3/football"
@@ -44,11 +45,18 @@ class Settings(BaseSettings):
     # --- Gemini ---
     GEMINI_MODEL: str = "gemini-2.5-flash"
 
+    # --- Anthropic ---
+    ANTHROPIC_MODEL: str = "claude-haiku-4-5-20251001"
+    ANTHROPIC_THINKING_BUDGET: int = 1200
+    ANTHROPIC_MAX_TOKENS: int = 3000
+
+    # --- Search ---
+    SERP_MONTHLY_LIMIT: int = 100  # adjust to your actual SerpAPI plan cap
+
     # --- Superbase (LTM and Ledger) ---
     ST_SUPABASE_URL:              str = ""
     ST_SUPABASE_PUBLISHABLE_KEY:  str = ""
     ST_SUPABASE_SECRET_KEY:       str = ""
-
 
     # --- Tournament ---
     SEASON_ID: int = 26618
@@ -68,7 +76,6 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY:  str = "changeme-set-a-real-secret-in-env"
     JWT_ALGORITHM:   str = "HS256"
     JWT_EXPIRE_DAYS: int = 7
-    # Comma-separated string — split with allowed_origins_list property
     ALLOWED_ORIGINS: str = "*"
 
     @property

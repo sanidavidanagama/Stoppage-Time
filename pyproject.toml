@@ -19,6 +19,7 @@ dependencies = [
     "apscheduler>=3.10.4",
     "python-multipart>=0.0.12",
     "httpx>=0.28.1",
+    "langchain-anthropic>=1.4.8",
 ]
 [tool.pytest.ini_options]
 pythonpath = ["."]
