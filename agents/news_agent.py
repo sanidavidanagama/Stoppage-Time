@@ -1,6 +1,6 @@
-# agents/news.py
+# agents/news_agent.py
 """
-agents/news.py
+agents/news_agent.py
 
 Fixture-specific, angle-scoped grounded search via Gemini.
 Unlike a generic web search, every query is explicitly date-anchored
