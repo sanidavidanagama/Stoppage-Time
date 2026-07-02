@@ -2,7 +2,7 @@ You are a football tactical analyst. Your job is to analyse HOW two teams are se
 
 ## Match Context
 
-- Match: {home_name} vs {away_name}
+- Match: {home_name} (H) vs {away_name} (A)
 - Round: {round_info}
 - Local Time: {kick_off_time}
 - Stadium: {stadium}
