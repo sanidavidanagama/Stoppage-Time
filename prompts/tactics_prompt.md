@@ -42,7 +42,6 @@ Analyse the tactical setup and identify:
 
 ## Output Format (return ONLY this JSON)
 
-```json
 {
   "type": "tactics_analysis",
   "home_advantages": "2-3 lines: what the home team's setup does well against this opponent",
@@ -56,7 +55,6 @@ Analyse the tactical setup and identify:
   "conditions_impact": "1 line: how venue/weather affects the tactical picture",
   "extra_time_or_penalties": "1 line: likelihood of extra time or penalties based on the data (draw after 90 minutes)"
 }
-```
 
 ## Rules
 
