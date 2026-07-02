@@ -78,6 +78,11 @@ class Settings(BaseSettings):
     JWT_EXPIRE_DAYS: int = 7
     ALLOWED_ORIGINS: str = "*"
 
+    # --- Tool call budgets (Reasoning Agent) ---
+    MAX_TACTICS_CALLS: int = 2
+    MAX_NEWS_CALLS:    int = 3
+    MAX_H2H_CALLS:     int = 3
+
     @property
     def allowed_origins_list(self) -> list[str]:
         return [o.strip() for o in self.ALLOWED_ORIGINS.split(",")]
