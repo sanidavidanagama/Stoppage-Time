@@ -100,6 +100,16 @@ TACTICS_PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "tact
 def _load_tactics_prompt_template() -> str:
     return TACTICS_PROMPT_PATH.read_text(encoding="utf-8")
 
+# service/prompt_builder.py
+
+def _fill_template(template: str, **kwargs) -> str:
+    """
+    Fill only the named placeholders, leaving any other { } in the
+    template (e.g. JSON schema examples) completely untouched.
+    """
+    for key, value in kwargs.items():
+        template = template.replace("{" + key + "}", str(value))
+    return template
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PUBLIC: Build the full tactics prompt
@@ -163,7 +173,8 @@ def build_tactics_prompt(
     away_form = build_team_form(away_id, away_name, match_timestamp)
 
     # Step 4: assemble prompt
-    prompt = _load_tactics_prompt_template().format(
+    prompt = _fill_template(
+        _load_tactics_prompt_template(),
         home_name=home_name,
         away_name=away_name,
         round_info=round_info,
