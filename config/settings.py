@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     ANTHROPIC_MODEL: str = "claude-haiku-4-5-20251001"
     ANTHROPIC_THINKING_BUDGET: int = 1200
     ANTHROPIC_MAX_TOKENS: int = 3000
+    ANTHROPIC_REASONING_MAX_TOKENS: int = 6000
 
     # --- Search ---
     SERP_MONTHLY_LIMIT: int = 100  # adjust to your actual SerpAPI plan cap
@@ -82,6 +83,8 @@ class Settings(BaseSettings):
     MAX_TACTICS_CALLS: int = 2
     MAX_NEWS_CALLS:    int = 3
     MAX_H2H_CALLS:     int = 3
+
+    
 
     @property
     def allowed_origins_list(self) -> list[str]:
