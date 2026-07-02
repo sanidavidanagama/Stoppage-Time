@@ -97,6 +97,10 @@ class Settings(BaseSettings):
     @property
     def H_PUBLIC(self) -> dict:
         return {"apikey": self.SUPABASE_KEY}
+    
+    @property
+    def POLYMARKET_MARKET_URL(self) -> str:
+        return f"{self.ARENA}/api/v1/data/polymarket/markets"
 
 
 settings = Settings()
