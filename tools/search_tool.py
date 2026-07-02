@@ -1,6 +1,6 @@
 # tools/search_tool.py
 from langchain_core.tools import tool
-from agents.search import web_search
+from agents.search_agent import web_search
 
 
 @tool
