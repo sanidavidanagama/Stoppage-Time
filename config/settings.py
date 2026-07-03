@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     ANTHROPIC_REASONING_MAX_TOKENS: int = 6000
 
     # --- Search ---
-    SERP_MONTHLY_LIMIT: int = 100  # adjust to your actual SerpAPI plan cap
+    SERP_MONTHLY_LIMIT: int = 100  
 
     # --- Superbase (LTM and Ledger) ---
     ST_SUPABASE_URL:              str = ""
@@ -83,8 +83,11 @@ class Settings(BaseSettings):
     MAX_TACTICS_CALLS: int = 2
     MAX_NEWS_CALLS:    int = 3
     MAX_H2H_CALLS:     int = 3
-
     
+    KELLY_MULTIPLIER: float = 0.35
+    MIN_STAKE_USD:    float = 4.0
+    MAX_STAKE_PCT:    float = 0.15
+
 
     @property
     def allowed_origins_list(self) -> list[str]:
