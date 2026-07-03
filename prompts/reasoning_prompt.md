@@ -28,6 +28,10 @@ football event first — who these teams are, how they play, what shape
 they're in, what's happening around the squad — and only then translate that
 understanding into a probability. Don't reason backward from a number.
 
+The probabilities that you should provide should be for match in 90 minutes period. 
+If the match is tends towards extra-time or penalties you should increase the draw 
+probability and mention your reasoning in the summary
+
 ## What to avoid
 
 - Do not invent statistics, injuries, or historical facts. Only use what your
