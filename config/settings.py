@@ -84,9 +84,8 @@ class Settings(BaseSettings):
     MAX_NEWS_CALLS:    int = 3
     MAX_H2H_CALLS:     int = 3
     
-    KELLY_MULTIPLIER: float = 0.35
-    MIN_STAKE_USD:    float = 4.0
-    MAX_STAKE_PCT:    float = 0.15
+    MIN_STAKE_USD:  float = 5.0   
+    MAX_STAKE_PCT:  float = 0.30
 
 
     @property
