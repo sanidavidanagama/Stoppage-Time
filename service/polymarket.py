@@ -52,6 +52,61 @@ def get_polymarket_prices(home_name: str, away_name: str) -> str:
     return _summarize(data, outcomes, home_name, away_name)
 
 
+def get_market_data(home_name: str, away_name: str) -> dict | None:
+    """
+    Get raw Polymarket data for a fixture, with outcomes explicitly mapped
+    to home/draw/away using Sportmonks short_codes.
+
+    Returns None if the fixture or market isn't found. If found but the
+    short_codes don't match any outcome name, returns the data with
+    mapping_ok=False so the caller can skip safely.
+    """
+    fixture = find_fixture_by_teams(home_name, away_name)
+    if fixture is None:
+        return None
+
+    with _client() as client:
+        resp = client.get(f"{settings.POLYMARKET_MARKET_URL}/{fixture['fixture_id']}")
+
+    if resp.status_code == 404:
+        return None
+    resp.raise_for_status()
+
+    data = resp.json()
+    outcomes = data.get("outcomes", [])
+    if not outcomes:
+        return None
+
+    home_code = (fixture["home"].get("short_code") or "").upper()
+    away_code = (fixture["away"].get("short_code") or "").upper()
+
+    result = {
+        "fixture_id": fixture["fixture_id"],
+        "home": {"code": home_code, "price": None},
+        "draw": {"price": None},
+        "away": {"code": away_code, "price": None},
+        "fetched_at": data.get("fetched_at"),
+    }
+
+    for outcome in outcomes:
+        name = (outcome.get("name") or "").upper()
+        price = outcome.get("mid_price")
+        if name == "DRAW":
+            result["draw"]["price"] = price
+        elif home_code and name == home_code:
+            result["home"]["price"] = price
+        elif away_code and name == away_code:
+            result["away"]["price"] = price
+
+    result["mapping_ok"] = all([
+        result["home"]["price"] is not None,
+        result["draw"]["price"] is not None,
+        result["away"]["price"] is not None,
+    ])
+
+    return result
+
+
 def _summarize(data: dict, outcomes: list[dict], home_name: str, away_name: str) -> str:
     lines = [f"Polymarket odds for {home_name} vs {away_name}:"]
 

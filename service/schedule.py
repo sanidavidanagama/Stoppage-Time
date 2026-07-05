@@ -105,8 +105,8 @@ def find_fixture_by_teams(
             "name":              name,
             "kickoff":           fix.get("starting_at"),
             "kickoff_timestamp": fix.get("starting_at_timestamp"),
-            "home": {"team_id": home_p["id"], "name": home_p.get("name", home_name)},
-            "away": {"team_id": away_p["id"], "name": away_p.get("name", away_name)},
+            "home": {"team_id": home_p["id"], "name": home_p.get("name", home_name), "short_code": home_p.get("short_code")},
+            "away": {"team_id": away_p["id"], "name": away_p.get("name", away_name), "short_code": away_p.get("short_code")},
         }
 
     return None
