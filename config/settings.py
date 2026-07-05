@@ -85,7 +85,7 @@ class Settings(BaseSettings):
     MAX_H2H_CALLS:     int = 3
     
     MIN_STAKE_USD:  float = 5.0   
-    MAX_STAKE_PCT:  float = 0.30
+    MAX_STAKE_PCT:  float = 0.15
 
 
     @property

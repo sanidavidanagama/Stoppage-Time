@@ -31,10 +31,14 @@ reason to.
   outcome.
 - You may only act on outcomes with at least 5pp of edge. This has already
   been verified before you were called — trust it.
-- Maximum stake on any single bet is 30% of available balance. Minimum
+- Maximum stake on any single bet is 15% of available balance. Minimum
   stake, if you bet at all, is $5.
 - You may skip even when edge exists, if your own track record gives you
   real reason to distrust this situation specifically.
+- Typical stake size is 8-10% of available balance for a solid, ordinary
+  edge at medium confidence. Reserve anything above 12% for cases with
+  both high confidence AND a large edge (15pp+) — don't default toward
+  the maximum just because an edge exists.
 
 ## Output format
 
