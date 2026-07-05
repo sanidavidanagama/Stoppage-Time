@@ -19,6 +19,7 @@ from config.settings import settings
 from service.polymarket import get_market_data
 from service.wallet import get_available_balance
 from service.db import save_bet, update_bet, log_step, get_recent_bets
+from service.orders import place_order, poll_order
 
 _PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "betting_prompt.md"
 
@@ -208,10 +209,31 @@ def run_betting_agent(
         stake = 0
         decision = "skip"
 
+    # Place and poll the real order if confirmed
+    order_info = {}
+    if decision == "confirm" and stake > 0:
+        team_code = "draw" if edge["outcome"] == "draw" else market[edge["outcome"]]["code"]
+        order_result = place_order(
+            fixture_id=market["fixture_id"],
+            team_code=team_code,
+            usd_size=stake,
+            market_price=edge["price"],
+        )
+        order_id = order_result.get("order_id")
+        if order_id:
+            final_order = poll_order(order_id)
+            order_info = {
+                "order_id": order_id,
+                "order_status": final_order.get("status", order_result.get("status")),
+            }
+        else:
+            order_info = {"order_status": order_result.get("status", "error")}
+
     update_bet(bet_id, {
         "decision": edge["outcome"] if decision == "confirm" else "skip",
         "stake_usd": stake if decision == "confirm" else None,
         "bet_reason": result.get("reasoning", ""),
+        **order_info,
     })
 
     return {
@@ -220,4 +242,5 @@ def run_betting_agent(
         "edge_pp": round(edge["edge_pp"], 1),
         "reasoning": result.get("reasoning"),
         "bet_id": bet_id,
+        **order_info,
     }
