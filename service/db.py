@@ -75,13 +75,12 @@ def log_step(
         resp = client.post(f"{settings.ST_SUPABASE_URL}/rest/v1/v2_logs", json=row)
     resp.raise_for_status()
 
-def get_recent_bets(limit: int = 10) -> list[dict]:
-    """Most recent bets, newest first — used for the betting agent's track record."""
+def get_recent_bets(limit: int = 10, exclude_test: bool = True) -> list[dict]:
+    params = {"select": "*", "order": "created_at.desc", "limit": str(limit)}
+    if exclude_test:
+        params["session_id"] = "not.like.test-%"
     with httpx.Client(headers=_headers(), timeout=15) as client:
-        resp = client.get(
-            f"{settings.ST_SUPABASE_URL}/rest/v1/v2_bets",
-            params={"select": "*", "order": "created_at.desc", "limit": str(limit)},
-        )
+        resp = client.get(f"{settings.ST_SUPABASE_URL}/rest/v1/v2_bets", params=params)
     resp.raise_for_status()
     return resp.json()
 
