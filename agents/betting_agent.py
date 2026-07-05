@@ -115,14 +115,6 @@ def run_betting_agent(
     session_id: str,
     leaderboard_status: str = "Unknown",
 ) -> dict:
-    """
-    Args:
-        prediction: Reasoning Agent's output (home_win_probability,
-            draw_probability, away_win_probability, confidence, ...).
-        session_id: groups this run's logs together.
-
-    Returns the final decision dict, already saved to v2_bets.
-    """
     market = get_market_data(home_name, away_name)
 
     if market is None or not market.get("mapping_ok"):
@@ -137,28 +129,36 @@ def run_betting_agent(
 
     edge = _scan_edge(prediction, market)
 
+    base_fields = {
+        "session_id": session_id,
+        "fixture_id": market["fixture_id"],
+        "home_team": home_name,
+        "away_team": away_name,
+        "home_code": market["home"]["code"],
+        "away_code": market["away"]["code"],
+        "home_probability": prediction["home_win_probability"],
+        "draw_probability": prediction["draw_probability"],
+        "away_probability": prediction["away_win_probability"],
+        "confidence": prediction.get("confidence"),
+        "market_home_price": market["home"]["price"],
+        "market_draw_price": market["draw"]["price"],
+        "market_away_price": market["away"]["price"],
+        "edge_pp": round(edge["edge_pp"], 1),
+    }
+
     if edge["edge_pp"] < settings.MIN_EDGE_PP:
         bet_row = save_bet({
-            "session_id": session_id,
-            "fixture_id": market["fixture_id"],
-            "home_team": home_name,
-            "away_team": away_name,
-            "home_code": market["home"]["code"],
-            "away_code": market["away"]["code"],
-            "home_probability": prediction["home_win_probability"],
-            "draw_probability": prediction["draw_probability"],
-            "away_probability": prediction["away_win_probability"],
-            "confidence": prediction.get("confidence"),
-            "market_home_price": market["home"]["price"],
-            "market_draw_price": market["draw"]["price"],
-            "market_away_price": market["away"]["price"],
-            "edge_pp": round(edge["edge_pp"], 1),
+            **base_fields,
             "decision": "skip",
             "bet_reason": f"edge_{round(edge['edge_pp'], 1)}pp_below_{settings.MIN_EDGE_PP}pp_threshold",
         })
         return {"decision": "skip", "reason": "below_edge_threshold", "edge_pp": round(edge["edge_pp"], 1), "bet_id": bet_row.get("id")}
 
-    # Real edge exists — now call the LLM
+    # Real edge exists — create the bet row NOW (decision pending), so every
+    # log row from here on can reference a real bet_id.
+    bet_row = save_bet({**base_fields, "decision": "pending"})
+    bet_id = bet_row.get("id")
+
     balance = get_available_balance()
     recent = get_recent_bets(limit=10)
 
@@ -189,6 +189,7 @@ def run_betting_agent(
         session_id=session_id,
         step_type="Thinking",
         tool="betting",
+        bet_id=bet_id,
         model=settings.ANTHROPIC_MODEL,
         prompt=prompt,
         response=final_text,
@@ -196,41 +197,18 @@ def run_betting_agent(
 
     result = _parse_json(final_text)
     if result is None:
-        bet_row = save_bet({
-            "session_id": session_id,
-            "fixture_id": market["fixture_id"],
-            "home_team": home_name,
-            "away_team": away_name,
-            "edge_pp": round(edge["edge_pp"], 1),
-            "decision": "skip",
-            "bet_reason": "llm_unparseable_response",
-        })
-        return {"decision": "skip", "reason": "llm_unparseable_response", "raw": final_text, "bet_id": bet_row.get("id")}
+        update_bet(bet_id, {"decision": "skip", "bet_reason": "llm_unparseable_response"})
+        return {"decision": "skip", "reason": "llm_unparseable_response", "raw": final_text, "bet_id": bet_id}
 
     decision = result.get("decision", "skip")
     stake = float(result.get("stake_usd", 0) or 0)
 
-    # Hard ceiling enforcement, regardless of what the LLM said
     stake = min(stake, settings.MAX_STAKE_PCT * balance)
     if decision == "confirm" and stake < settings.MIN_STAKE_USD:
         stake = 0
         decision = "skip"
 
-    bet_row = save_bet({
-        "session_id": session_id,
-        "fixture_id": market["fixture_id"],
-        "home_team": home_name,
-        "away_team": away_name,
-        "home_code": market["home"]["code"],
-        "away_code": market["away"]["code"],
-        "home_probability": prediction["home_win_probability"],
-        "draw_probability": prediction["draw_probability"],
-        "away_probability": prediction["away_win_probability"],
-        "confidence": prediction.get("confidence"),
-        "market_home_price": market["home"]["price"],
-        "market_draw_price": market["draw"]["price"],
-        "market_away_price": market["away"]["price"],
-        "edge_pp": round(edge["edge_pp"], 1),
+    update_bet(bet_id, {
         "decision": edge["outcome"] if decision == "confirm" else "skip",
         "stake_usd": stake if decision == "confirm" else None,
         "bet_reason": result.get("reasoning", ""),
@@ -241,5 +219,5 @@ def run_betting_agent(
         "stake_usd": stake if decision == "confirm" else None,
         "edge_pp": round(edge["edge_pp"], 1),
         "reasoning": result.get("reasoning"),
-        "bet_id": bet_row.get("id"),
+        "bet_id": bet_id,
     }
