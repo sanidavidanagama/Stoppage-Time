@@ -50,23 +50,23 @@ def update_bet(bet_id: str, fields: dict) -> None:
 def log_step(
     session_id: str,
     step_type: str,
-    agent: str,
+    tool: str,
     bet_id: str | None = None,
-    tool_name: str | None = None,
     model: str | None = None,
     prompt: str | None = None,
     response: str | None = None,
 ) -> None:
     """
-    Insert one row into v2_logs — one call per LLM invocation or tool call,
-    across any agent (tactics, news, reasoning, betting).
+    Insert one row into v2_logs — one call per LLM invocation or tool call.
+    'tool' is either the agent's own name (e.g. "betting", "reasoning") for
+    its own thinking steps, or the actual tool name (e.g. "consult_tactics")
+    for a sub-call made during a ReAct loop.
     """
     row = {
         "session_id": session_id,
         "step_type":  step_type,
-        "agent":      agent,
+        "tool":       tool,
         "bet_id":     bet_id,
-        "tool_name":  tool_name,
         "model":      model,
         "prompt":     prompt,
         "response":   response,
@@ -74,7 +74,6 @@ def log_step(
     with httpx.Client(headers=_headers(), timeout=15) as client:
         resp = client.post(f"{settings.ST_SUPABASE_URL}/rest/v1/v2_logs", json=row)
     resp.raise_for_status()
-
 
 def get_recent_bets(limit: int = 10) -> list[dict]:
     """Most recent bets, newest first — used for the betting agent's track record."""

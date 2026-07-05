@@ -188,7 +188,7 @@ def run_betting_agent(
     log_step(
         session_id=session_id,
         step_type="Thinking",
-        agent="betting",
+        tool="betting",
         model=settings.ANTHROPIC_MODEL,
         prompt=prompt,
         response=final_text,
