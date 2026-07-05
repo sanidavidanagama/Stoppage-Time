@@ -18,7 +18,7 @@ from langchain_core.messages import HumanMessage
 from config.settings import settings
 from service.polymarket import get_market_data
 from service.wallet import get_available_balance
-from service.db import save_bet, log_step, get_recent_bets
+from service.db import save_bet, update_bet, log_step, get_recent_bets
 
 _PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "betting_prompt.md"
 
