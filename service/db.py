@@ -109,3 +109,58 @@ def get_pending_bets() -> list[dict]:
         )
     resp.raise_for_status()
     return resp.json()
+
+def get_current_personality() -> str:
+    """
+    Fetch the most recent personality-note update from v2_logs.
+    Returns a default message if none exists yet.
+    """
+    with httpx.Client(headers=_headers(), timeout=15) as client:
+        resp = client.get(
+            f"{settings.ST_SUPABASE_URL}/rest/v1/v2_logs",
+            params={
+                "select": "response,created_at",
+                "tool": "eq.memory",
+                "order": "created_at.desc",
+                "limit": "1",
+            },
+        )
+    resp.raise_for_status()
+    rows = resp.json()
+    return rows[0]["response"] if rows else "No prior self-reflection yet — this is a fresh start."
+
+
+def save_personality_update(bet_id: str, session_id: str, personality_text: str) -> None:
+    """
+    Saves a new personality-note version as a v2_logs row (tool='memory').
+    Old versions are never deleted — get_current_personality always reads
+    the most recent one.
+    """
+    log_step(
+        session_id=session_id,
+        step_type="Reflecting",
+        tool="memory",
+        bet_id=bet_id,
+        response=personality_text,
+    )
+
+
+def get_bet_by_id(bet_id: str) -> dict | None:
+    with httpx.Client(headers=_headers(), timeout=15) as client:
+        resp = client.get(
+            f"{settings.ST_SUPABASE_URL}/rest/v1/v2_bets",
+            params={"select": "*", "id": f"eq.{bet_id}"},
+        )
+    resp.raise_for_status()
+    rows = resp.json()
+    return rows[0] if rows else None
+
+
+def get_logs_for_bet(bet_id: str) -> list[dict]:
+    with httpx.Client(headers=_headers(), timeout=15) as client:
+        resp = client.get(
+            f"{settings.ST_SUPABASE_URL}/rest/v1/v2_logs",
+            params={"select": "*", "bet_id": f"eq.{bet_id}", "order": "created_at.asc"},
+        )
+    resp.raise_for_status()
+    return resp.json()
