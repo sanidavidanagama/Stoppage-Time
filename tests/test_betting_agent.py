@@ -15,7 +15,7 @@ fake_prediction = {
 }
 
 result = run_betting_agent(
-    "Brazil", "Norway",   # swap for whichever fixture is still upcoming right now
+    "Brazil", "Norway",
     prediction=fake_prediction,
     session_id="test-betting-002",
     leaderboard_status="Rank unknown — leaderboard endpoint currently down",
