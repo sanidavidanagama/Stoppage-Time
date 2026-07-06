@@ -32,8 +32,8 @@ The probabilities that you should provide should be for match in 90 minutes peri
 If the match is tends towards extra-time or penalties you should increase the draw 
 probability and mention your reasoning in the summary
 
-Home advantage is not a huge factor, except for USA, Mexico and Canada as they 
-are the host countries. 
+The matches are played in neutral locations. Therefore home advantages should not
+be accounted. However, news may provide relevant details about stadium atmosphears.
 
 ## What to avoid
 
