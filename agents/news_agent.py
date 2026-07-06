@@ -14,6 +14,7 @@ from google import genai
 from google.genai import types
 
 from config.settings import settings
+from service.telemetry import record_thinking
 
 _client = None
 
@@ -57,7 +58,14 @@ ANGLE_TEMPLATES = {
 }
 
 
-def get_news(home_team: str, away_team: str, angle: str, match_date: str = "") -> dict:
+def get_news(
+    home_team: str,
+    away_team: str,
+    angle: str,
+    match_date: str = "",
+    session_id: str | None = None,
+    bet_id: str | None = None,
+) -> dict:
     """
     Get fixture-specific, recency-anchored news for a given angle.
 
@@ -65,6 +73,8 @@ def get_news(home_team: str, away_team: str, angle: str, match_date: str = "") -
         home_team, away_team: team names.
         angle: one of "injuries", "atmosphere", "pundits", "sentiment", "wildcard".
         match_date: e.g. "2026-07-04" — helps ground recency instructions.
+        session_id, bet_id: optional — when provided, this call gets logged
+            to Supabase (v2_logs) and Stair AI's Reasoning Ledger.
     """
     template = ANGLE_TEMPLATES.get(angle)
     if template is None:
@@ -102,10 +112,24 @@ def get_news(home_team: str, away_team: str, angle: str, match_date: str = "") -
             if chunk.web:
                 sources.append({"title": chunk.web.title, "url": chunk.web.uri})
 
+    answer_text = "\n".join(answer_parts)
+    thinking_text = "\n\n".join(thinking_parts)
+
+    if session_id:
+        record_thinking(
+            session_id=session_id,
+            bet_id=bet_id,
+            tool="news",
+            model=settings.GEMINI_MODEL,
+            prompt=query,
+            response=answer_text,
+            internal_reasoning=thinking_text,
+        )
+
     return {
         "available": True,
         "angle": angle,
-        "answer": "\n".join(answer_parts),
+        "answer": answer_text,
         "sources": sources,
-        "internal_reasoning": "\n\n".join(thinking_parts),
+        "internal_reasoning": thinking_text,
     }
