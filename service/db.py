@@ -34,16 +34,13 @@ def save_bet(bet: dict) -> dict:
 
 
 def update_bet(bet_id: str, fields: dict) -> None:
-    """
-    Update an existing v2_bets row by id — used later for settlement
-    (actual_outcome, pnl, settled_at).
-    """
     with httpx.Client(headers=_headers(), timeout=15) as client:
         resp = client.patch(
             f"{settings.ST_SUPABASE_URL}/rest/v1/v2_bets",
             params={"id": f"eq.{bet_id}"},
             json=fields,
         )
+    print("STATUS:", resp.status_code, "BODY:", resp.text)  # temporary debug
     resp.raise_for_status()
 
 
@@ -99,3 +96,16 @@ def get_bets_by_edge_range(min_edge: float, max_edge: float) -> list[dict]:
     resp.raise_for_status()
     rows = resp.json()
     return [r for r in rows if r["edge_pp"] <= max_edge]
+
+def get_pending_bets() -> list[dict]:
+    with httpx.Client(headers=_headers(), timeout=15) as client:
+        resp = client.get(
+            f"{settings.ST_SUPABASE_URL}/rest/v1/v2_bets",
+            params={
+                "select": "*",
+                "actual_outcome": "is.null",
+                "fixture_id": "not.is.null",
+            },
+        )
+    resp.raise_for_status()
+    return resp.json()

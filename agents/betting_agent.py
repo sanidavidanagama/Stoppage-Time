@@ -225,6 +225,7 @@ def run_betting_agent(
             order_info = {
                 "order_id": order_id,
                 "order_status": final_order.get("status", order_result.get("status")),
+                "fill_price": final_order.get("open_avg_fill_price"),
             }
         else:
             order_info = {"order_status": order_result.get("status", "error")}
