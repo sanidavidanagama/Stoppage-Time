@@ -10,6 +10,7 @@ from config.settings import settings
 from tools.tactics_tool import consult_tactics
 from tools.news_tool import get_fixture_news
 from tools.h2h_tool import get_head_to_head
+from service.telemetry import record_thinking
 
 TOOLS = [consult_tactics, get_fixture_news, get_head_to_head]
 TOOLS_BY_NAME = {t.name: t for t in TOOLS}
@@ -21,6 +22,7 @@ TOOL_BUDGETS = {
 }
 
 _PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "reasoning_prompt.md"
+
 
 def _load_prompt() -> str:
     return _PROMPT_PATH.read_text(encoding="utf-8")
@@ -41,13 +43,10 @@ def _model():
 
 
 def _extract(response) -> tuple[str, str]:
-    thinking_parts, text_parts = [], []
-
     if isinstance(response.content, str):
-        # LangChain collapses content to a plain string when there's
-        # only text and no thinking/tool_use blocks alongside it.
         return "", response.content
 
+    thinking_parts, text_parts = [], []
     for block in response.content:
         if isinstance(block, dict):
             if block.get("type") == "thinking":
@@ -74,6 +73,8 @@ def run_reasoning(
     kick_off_time: str = "Unknown",
     stadium: str = "Unknown venue",
     weather: str = "Unknown conditions",
+    session_id: str | None = None,
+    bet_id: str | None = None,
 ) -> dict:
     system_prompt = _fill_template(
         _load_prompt(),
@@ -94,12 +95,20 @@ def run_reasoning(
         response = model.invoke(messages)
         messages.append(response)
 
-        print(f"\n[DEBUG] Round {round_num} stop_reason: {response.response_metadata.get('stop_reason')}")
-        print(f"[DEBUG] Round {round_num} raw content: {response.content}")
-
         thinking, final_text = _extract(response)
         if thinking:
             all_thinking.append(f"[Round {round_num}]\n{thinking}")
+
+        if session_id:
+            record_thinking(
+                session_id=session_id,
+                bet_id=bet_id,
+                tool="reasoning",
+                model=settings.ANTHROPIC_MODEL,
+                prompt=system_prompt if round_num == 1 else f"[Round {round_num} continuation]",
+                response=final_text or "(tool_use round — no text output yet)",
+                internal_reasoning=thinking,
+            )
 
         stop_reason = response.response_metadata.get("stop_reason")
 
