@@ -205,6 +205,7 @@ def run_betting_agent(
     stake = float(result.get("stake_usd", 0) or 0)
 
     stake = min(stake, settings.MAX_STAKE_PCT * balance)
+    stake = min(stake, 5.0)
     if decision == "confirm" and stake < settings.MIN_STAKE_USD:
         stake = 0
         decision = "skip"

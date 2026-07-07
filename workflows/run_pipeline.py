@@ -48,4 +48,4 @@ def run(home: str, away: str, round_info: str):
 if __name__ == "__main__":
     # Update these before every run — check test_upcoming_fixtures.py first
     # to confirm the fixture is still genuinely upcoming.
-    run(home="Mexico", away="England", round_info="Round of 16")
+    run(home="Portugal", away="Spain", round_info="Round of 16")
