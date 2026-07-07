@@ -9,7 +9,12 @@ best-effort — a logging failure never blocks a real decision.
 
 from config.settings import settings
 from service.db import log_step
-from service.stair_ai_ledger import thinking as ledger_thinking, tool_calling as ledger_tool_calling, submit_records
+from service.stair_ai_ledger import thinking as ledger_thinking, tool_calling as ledger_tool_calling
+from service.stair_ai_ledger import (
+    acting_prediction as ledger_acting_prediction,
+    acting_order as ledger_acting_order,
+    submit_records,
+)
 
 
 def record_thinking(
@@ -84,3 +89,19 @@ def record_tool_call(
         )
     except Exception as e:
         print(f"[telemetry] Ledger ToolCalling submit failed (non-fatal): {e}")
+
+        
+def record_prediction(session_id: str, fixture_id, outcome: str, probability: float, notes: str = "") -> None:
+    """Submit the required Acting/prediction record — no Supabase write needed
+    here, since the prediction itself already lives in v2_bets."""
+    try:
+        submit_records(ledger_acting_prediction(session_id, fixture_id, outcome, probability, notes))
+    except Exception as e:
+        print(f"[telemetry] Ledger Acting/prediction submit failed (non-fatal): {e}")
+
+
+def record_order(session_id: str, fixture_id, team_code: str, usd_size: float, summary: str) -> None:
+    try:
+        submit_records(ledger_acting_order(session_id, None, fixture_id, team_code, usd_size, summary))
+    except Exception as e:
+        print(f"[telemetry] Ledger Acting/order submit failed (non-fatal): {e}")

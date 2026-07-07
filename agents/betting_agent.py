@@ -18,8 +18,9 @@ from langchain_core.messages import HumanMessage
 from config.settings import settings
 from service.polymarket import get_market_data
 from service.wallet import get_available_balance
-from service.db import save_bet, update_bet, log_step, get_recent_bets
+from service.db import save_bet, update_bet, get_recent_bets
 from service.orders import place_order, poll_order
+from service.telemetry import record_thinking, record_prediction, record_order
 
 _PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "betting_prompt.md"
 
@@ -160,6 +161,17 @@ def run_betting_agent(
     bet_row = save_bet({**base_fields, "decision": "pending"})
     bet_id = bet_row.get("id")
 
+    # Submit the required Acting/prediction record — this is scored
+    # regardless of whether we actually bet.
+    predicted_code = "draw" if edge["outcome"] == "draw" else market[edge["outcome"]]["code"]
+    record_prediction(
+        session_id=session_id,
+        fixture_id=market["fixture_id"],
+        outcome=predicted_code,
+        probability=edge["agent_prob"],
+        notes=f"home {prediction['home_win_probability']:.2f} / draw {prediction['draw_probability']:.2f} / away {prediction['away_win_probability']:.2f}",
+    )
+
     balance = get_available_balance()
     recent = get_recent_bets(limit=10)
 
@@ -186,14 +198,14 @@ def run_betting_agent(
     response = model.invoke([HumanMessage(prompt)])
     thinking, final_text = _extract(response)
 
-    log_step(
+    record_thinking(
         session_id=session_id,
-        step_type="Thinking",
-        tool="betting",
         bet_id=bet_id,
+        tool="betting",
         model=settings.ANTHROPIC_MODEL,
         prompt=prompt,
         response=final_text,
+        internal_reasoning=thinking,
     )
 
     result = _parse_json(final_text)
@@ -228,6 +240,13 @@ def run_betting_agent(
                 "order_status": final_order.get("status", order_result.get("status")),
                 "fill_price": final_order.get("open_avg_fill_price"),
             }
+            record_order(
+                session_id=session_id,
+                fixture_id=market["fixture_id"],
+                team_code=team_code,
+                usd_size=stake,
+                summary=f"Bought ${stake:.2f} of {team_code} (edge {edge['edge_pp']:.1f}pp)",
+            )
         else:
             order_info = {"order_status": order_result.get("status", "error")}
 
