@@ -70,4 +70,4 @@ def web_search(query: str) -> dict:
         "answer": "\n".join(answer_parts),
         "sources": sources,
         "internal_reasoning": "\n\n".join(thinking_parts),
-    }
+    }   
