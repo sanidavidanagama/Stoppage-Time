@@ -73,6 +73,7 @@ def run_reasoning(
     kick_off_time: str = "Unknown",
     stadium: str = "Unknown venue",
     weather: str = "Unknown conditions",
+    pre_gathered_context: str = "",
     session_id: str | None = None,
     bet_id: str | None = None,
 ) -> dict:
@@ -84,6 +85,7 @@ def run_reasoning(
         kick_off_time=kick_off_time,
         stadium=stadium,
         weather=weather,
+        pre_gathered_context=pre_gathered_context,
     )
 
     model = _model()
