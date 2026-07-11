@@ -103,22 +103,26 @@ def record_tool_call(
         print(f"[telemetry] Ledger ToolCalling submit failed (non-fatal): {e}")
 
 
-def record_prediction(session_id: str, fixture_id, outcome: str, probability: float, notes: str = "") -> None:
-    """Submit the required Acting/prediction record — no Supabase write needed
-    here, since the prediction itself already lives in v2_bets."""
+def record_prediction(session_id: str, fixture_id, outcome: str, probability: float, notes: str = "") -> str | None:
+    """
+    Submit the required Acting/prediction record. Returns the server-assigned
+    record_id (needed as the order record's upstream_record_id), or None if
+    the submission failed.
+    """
     try:
-        submit_records(ledger_acting_prediction(session_id, fixture_id, outcome, probability, notes))
+        result = submit_records(ledger_acting_prediction(session_id, fixture_id, outcome, probability, notes))
+        records = result.get("records", [])
+        return records[0]["record_id"] if records else None
     except Exception as e:
         print(f"[telemetry] Ledger Acting/prediction submit failed (non-fatal): {e}")
+        return None
 
 
-def record_order(session_id: str, fixture_id, team_code: str, usd_size: float, summary: str) -> None:
-    """Record a real placed order."""
+def record_order(session_id: str, fixture_id, team_code: str, usd_size: float, summary: str, upstream_id: str | None = None) -> None:
     try:
-        submit_records(ledger_acting_order(session_id, None, fixture_id, team_code, usd_size, summary))
+        submit_records(ledger_acting_order(session_id, upstream_id, fixture_id, team_code, usd_size, summary))
     except Exception as e:
         print(f"[telemetry] Ledger Acting/order submit failed (non-fatal): {e}")
-
 
 def record_reflecting(session_id: str, bet_id: str, output_payload: str) -> None:
     """Record a post-settlement self-reflection (personality update or not)."""

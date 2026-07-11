@@ -62,7 +62,7 @@ def observing(session_id: str, description: str, source: str, fixture_id: str | 
 
 # --- ToolCalling ---------------------------------------------------------------
 
-def tool_calling(session_id: str, upstream_id: str, tool_name: str, params: dict, result_summary: str, success: bool = True) -> list[dict]:
+def tool_calling(session_id, upstream_id, tool_name, params, result_summary, success=True):
     return [{
         "schema_version": settings.LEDGER_SCHEMA_VERSION,
         "agent_id": settings.AGENT_ID,
@@ -71,9 +71,8 @@ def tool_calling(session_id: str, upstream_id: str, tool_name: str, params: dict
         "behavior": "ToolCalling",
         "client_ts_utc": _ts(),
         "upstream_record_id": [upstream_id] if upstream_id else [],
-        "tool_name": tool_name,
-        "tool_parameters": params,
-        "result_summary": result_summary,
+        "tool_meta": {"tool_name": tool_name, **params},
+        "description": result_summary,
         "success": success,
     }]
 
@@ -81,6 +80,7 @@ def tool_calling(session_id: str, upstream_id: str, tool_name: str, params: dict
 # --- Thinking ---------------------------------------------------------------
 
 def thinking(session_id: str, upstream_id: str | None, model_name: str, internal_reasoning: str, prompt: str, output_payload: str) -> list[dict]:
+    provider = "anthropic" if "claude" in model_name.lower() else "google" if "gemini" in model_name.lower() else "unknown"
     rec = {
         "schema_version": settings.LEDGER_SCHEMA_VERSION,
         "agent_id": settings.AGENT_ID,
@@ -89,7 +89,7 @@ def thinking(session_id: str, upstream_id: str | None, model_name: str, internal
         "behavior": "Thinking",
         "client_ts_utc": _ts(),
         "inputs": [],
-        "model_invocation": {"model_name": model_name, "internal_reasoning": internal_reasoning},
+        "model_invocation": {"provider": provider, "model_name": model_name, "internal_reasoning": internal_reasoning},
         "prompt": prompt,
         "output_payload": output_payload,
     }
@@ -140,7 +140,7 @@ def acting_order(session_id: str, upstream_id: str, fixture_id: str, team_code: 
 
 # --- Planning ---------------------------------------------------------------
 
-def planning(session_id: str, goal: str, steps: list[str]) -> list[dict]:
+def planning(session_id, goal, steps):
     return [{
         "schema_version": settings.LEDGER_SCHEMA_VERSION,
         "agent_id": settings.AGENT_ID,
@@ -149,9 +149,8 @@ def planning(session_id: str, goal: str, steps: list[str]) -> list[dict]:
         "behavior": "Planning",
         "client_ts_utc": _ts(),
         "goal": goal,
-        "steps": steps,
+        "steps": [{"index": i, "description": s} for i, s in enumerate(steps)],
     }]
-
 
 # --- Reflecting ---------------------------------------------------------------
 

@@ -272,6 +272,30 @@ def build_team_form(
 
     return "\n".join(sections)
 
+def build_full_team_form(team_id: int, team_name: str, before_timestamp: int) -> str:
+    """
+    Like build_team_form, but every match gets the LONG format, not just
+    the most recent. Used by the unified agent, which wants full detail
+    across the whole tournament in one prompt.
+    """
+    fixtures_basic = find_team_fixtures(team_id, before_timestamp)
+    if not fixtures_basic:
+        return f"### {team_name} Past Performances\n\nNo previous matches found."
+
+    fixtures_detail = []
+    for fix in fixtures_basic:
+        fid = fix["id"]
+        print(f"  Fetching detail for {fix.get('name', fid)} (id: {fid})...")
+        detail = fetch_fixture_detail(fid)
+        fixtures_detail.append(detail)
+
+    sections = [f"### {team_name} Past Performances (FULL DETAIL — all matches)\n"]
+    for fix in reversed(fixtures_detail):
+        sections.append(format_match_long(fix, team_id))
+        sections.append("")
+
+    sections.append(format_form_summary(fixtures_detail, team_id, team_name))
+    return "\n".join(sections)
 
 # ─── Match analysis builder (both teams) ─────────────────────────────────────
 

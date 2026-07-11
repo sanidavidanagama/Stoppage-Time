@@ -48,7 +48,7 @@ def run_planning(home_team: str, away_team: str, round_info: str, session_id: st
     _log_tool_call(session_id, bet_id, "get_h2h", {}, {"answer": h2h_text})
 
     parts = ["## Pre-gathered context (from Planning Agent)\n"]
-    parts.append(f"**General tactical read:**\n{tactics_result.get('summary', tactics_result.get('error'))}")
+    parts.append(f"**General tactical read:**\n{_format_tactics_summary(tactics_result)}")
     parts.append(f"\n**Injury/squad news:**\n{injuries.get('answer', injuries.get('error'))}")
     parts.append(f"\n**Pundit predictions:**\n{pundits.get('answer', pundits.get('error'))}")
     parts.append(f"\n**Atmosphere:**\n{atmosphere.get('answer', atmosphere.get('error'))}")
@@ -67,3 +67,15 @@ def _log_tool_call(session_id, bet_id, tool_name, params, result):
         submit_records(ledger_tool_calling(session_id, None, tool_name, params, summary, success=result.get("available", True)))
     except Exception as e:
         print(f"[planning] Ledger submit failed (non-fatal): {e}")
+
+def _format_tactics_summary(t: dict) -> str:
+    if not t.get("available"):
+        return f"Tactical analysis unavailable: {t.get('error', 'unknown error')}"
+    return (
+        f"Home advantages: {t.get('home_advantages', 'N/A')}\n"
+        f"Home vulnerabilities: {t.get('home_vulnerabilities', 'N/A')}\n"
+        f"Away advantages: {t.get('away_advantages', 'N/A')}\n"
+        f"Away vulnerabilities: {t.get('away_vulnerabilities', 'N/A')}\n"
+        f"Style clash: {t.get('style_clash', 'N/A')}\n"
+        f"Extra time/penalties likelihood: {t.get('extra_time_or_penalties', 'N/A')}"
+    )
