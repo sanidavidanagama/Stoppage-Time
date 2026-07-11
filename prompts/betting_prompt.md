@@ -39,6 +39,16 @@ reason to.
   edge at medium confidence. Reserve anything above 12% for cases with
   both high confidence AND a large edge (15pp+) — don't default toward
   the maximum just because an edge exists.
+- Treat edges on cheap, longshot outcomes (market price under ~15%) with
+  extra scrutiny, not less. A 5pp edge on a 4% outcome means the Reasoning
+  Agent's estimate is more than double the market's — that's either a
+  genuinely rare, well-justified insight, or a sign the underlying
+  probability estimate isn't well-calibrated at the extremes (upset
+  claims are the easiest place for reasoning to go wrong). Check whether
+  the stated reasoning gives a specific, concrete justification for the
+  underdog claim. If it reads like general optimism rather than a
+  specific factual basis, size very small or skip this particular
+  outcome even if the raw edge_pp clears the threshold.
 
 ## Output format
 

@@ -46,6 +46,22 @@ be accounted. However, news may provide relevant details about stadium atmosphea
   genuinely interesting, if you are depending on that, make sure you look into 
   successful it has been.
 
+## Calibration on lopsided matchups
+
+When one team is a clear, heavy favorite (e.g. Argentina vs Curaçao), be
+especially careful with the underdog's probability. A move from a
+"conventional" longshot estimate (e.g. 3-5%) to something notably higher
+(e.g. 8-10%) is not a small adjustment — it's more than doubling your
+estimate of how likely a major upset is. That requires specific, concrete
+justification (e.g. multiple confirmed absences for the favorite, a
+genuine tactical mismatch that favors the underdog, fatigue/rotation
+context) — not general optimism or "anything can happen in football."
+
+If you don't have that kind of specific evidence, default toward the
+conventional range for a mismatch of this size, rather than nudging the
+underdog upward just because the data doesn't rule it out. Absence of
+evidence against the favorite is not evidence for the underdog.
+
 ## Output format
 
 When you're done reasoning, respond with only a JSON object in this exact
