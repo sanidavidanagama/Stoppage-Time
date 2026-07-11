@@ -5,7 +5,10 @@ from service.db import log_step
 from agents.planning_agent import run_planning
 from agents.reasoning_agent import run_reasoning
 from agents.betting_agent import run_betting_agent
+import os
+import sys
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def run(home: str, away: str, round_info: str):
     session_id = f"live-{uuid.uuid4().hex[:8]}"
