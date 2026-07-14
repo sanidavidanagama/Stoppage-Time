@@ -7,6 +7,7 @@ from config.settings import settings
 from service.schedule import find_fixture_by_teams
 from service.prompt_builder import build_tactics_prompt
 from service.telemetry import record_thinking
+from service.db import update_session_status
 
 _model = ChatAnthropic(
     model=settings.ANTHROPIC_MODEL,
@@ -54,6 +55,9 @@ def tactics_analyse(
             "available": False,
             "error": f"No fixture found for {home_team} vs {away_team}",
         }
+
+    if session_id:
+        update_session_status(session_id, "tactical analysis")
 
     prompt = build_tactics_prompt(
         fixture_id=fixture["fixture_id"],

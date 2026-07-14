@@ -11,6 +11,7 @@ from tools.tactics_tool import consult_tactics
 from tools.news_tool import get_fixture_news
 from tools.h2h_tool import get_head_to_head
 from service.telemetry import record_thinking
+from service.db import update_session_status
 
 TOOLS = [consult_tactics, get_fixture_news, get_head_to_head]
 TOOLS_BY_NAME = {t.name: t for t in TOOLS}
@@ -94,6 +95,9 @@ def run_reasoning(
     call_counts = {name: 0 for name in TOOL_BUDGETS}
 
     for round_num in range(1, settings.MAX_TOOL_ROUNDS + 1):
+        if session_id:
+            update_session_status(session_id, "reasoning")
+
         response = model.invoke(messages)
         messages.append(response)
 

@@ -3,10 +3,12 @@ from agents.tactics_agent import tactics_analyse
 from agents.news_agent import get_news
 from service.h2h import get_h2h
 from service.stair_ai_ledger import planning as ledger_planning, tool_calling as ledger_tool_calling, submit_records
-from service.db import log_step
+from service.db import log_step, update_session_status
 
 
 def run_planning(home_team: str, away_team: str, round_info: str, session_id: str, bet_id: str | None = None) -> str:
+    update_session_status(session_id, "planning")
+
     goal = f"Gather pre-match context and evaluate a betting decision for {home_team} vs {away_team}"
 
     # Full intended plan, documented for the ledger — reasoning/betting steps
@@ -23,7 +25,7 @@ def run_planning(home_team: str, away_team: str, round_info: str, session_id: st
     ]
 
     try:
-        log_step(session_id=session_id, step_type="Planning", tool="planning", bet_id=bet_id, response=f"{goal}: {steps}")
+        log_step(session_id=session_id, step_type="Planning", tool="planning", response=f"{goal}: {steps}")
     except Exception as e:
         print(f"[planning] Supabase log failed (non-fatal): {e}")
     try:
@@ -60,7 +62,7 @@ def run_planning(home_team: str, away_team: str, round_info: str, session_id: st
 def _log_tool_call(session_id, bet_id, tool_name, params, result):
     summary = result.get("answer") or result.get("summary") or str(result)[:200]
     try:
-        log_step(session_id=session_id, step_type="ToolCalling", tool=tool_name, bet_id=bet_id, prompt=str(params), response=summary)
+        log_step(session_id=session_id, step_type="ToolCalling", tool=tool_name, prompt=str(params), response=summary)
     except Exception as e:
         print(f"[planning] Supabase log failed (non-fatal): {e}")
     try:

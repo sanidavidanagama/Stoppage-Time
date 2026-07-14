@@ -18,7 +18,7 @@ from langchain_core.messages import HumanMessage
 from config.settings import settings
 from service.polymarket import get_market_data
 from service.wallet import get_available_balance
-from service.db import save_bet, update_bet, get_recent_bets
+from service.db import save_bet, update_bet, get_recent_bets, update_session_status
 from service.orders import place_order, poll_order
 from service.telemetry import record_thinking, record_prediction, record_order
 
@@ -117,6 +117,8 @@ def run_betting_agent(
     session_id: str,
     leaderboard_status: str = "Unknown",
 ) -> dict:
+    update_session_status(session_id, "betting")
+
     market = get_market_data(home_name, away_name)
 
     if market is None or not market.get("mapping_ok"):

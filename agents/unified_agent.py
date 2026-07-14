@@ -45,15 +45,16 @@ def run_unified_agent(home_name: str, away_name: str, round_info: str, session_i
     create_session(session_id, home_name, away_name, source="v2")
 
     record_observing(session_id, f"Unified single-call run: {home_name} vs {away_name}", "manual_run")
+    update_session_status(session_id, "planning")
 
     fixture = find_fixture_by_teams(home_name, away_name)
     if fixture is None:
-        update_session_status(session_id, "failed")
+        update_session_status(session_id, "error")
         return {"decision": "error", "reason": "fixture_not_found"}
 
     market = get_market_data(home_name, away_name)
     if market is None or not market.get("mapping_ok"):
-        update_session_status(session_id, "failed")
+        update_session_status(session_id, "error")
         return {"decision": "error", "reason": "no_live_market", "bet_id": None}
 
     detail = fetch_fixture_detail(fixture["fixture_id"])
@@ -95,6 +96,8 @@ def run_unified_agent(home_name: str, away_name: str, round_info: str, session_i
         track_record=track_record,
     )
 
+    update_session_status(session_id, "reasoning")
+
     model = ChatAnthropic(
         model="claude-opus-4-8",
         max_tokens=16000,
@@ -119,7 +122,7 @@ def run_unified_agent(home_name: str, away_name: str, round_info: str, session_i
     result = _parse(final_text)
     if result is None:
         update_bet(bet_id, {"decision": "skip", "bet_reason": "unparseable"})
-        update_session_status(session_id, "failed")
+        update_session_status(session_id, "error")
         return {"decision": "error", "raw": final_text, "bet_id": bet_id}
 
     print("\n" + "="*80)
@@ -145,6 +148,8 @@ def run_unified_agent(home_name: str, away_name: str, round_info: str, session_i
     edge_pp = round((prob - (market["draw"]["price"] if outcome == "draw" else market[outcome]["price"])) * 100, 1)
 
     prediction_record_id = record_prediction(session_id, fixture["fixture_id"], code, prob, result.get("reasoning", ""))
+
+    update_session_status(session_id, "betting")
 
     order_result = place_order(fixture["fixture_id"], code, stake, market[outcome]["price"] if outcome != "draw" else market["draw"]["price"])
     order_id = order_result.get("order_id")

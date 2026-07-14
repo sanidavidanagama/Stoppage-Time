@@ -15,6 +15,7 @@ from google.genai import types
 
 from config.settings import settings
 from service.telemetry import record_thinking
+from service.db import update_session_status
 
 _client = None
 
@@ -82,6 +83,9 @@ def get_news(
             "available": False,
             "error": f"Unknown angle '{angle}'. Valid: {list(ANGLE_TEMPLATES.keys())}",
         }
+
+    if session_id:
+        update_session_status(session_id, "searching")
 
     query = template.format(home=home_team, away=away_team, match_date=match_date or "the upcoming match")
     query += f"\n\nToday's date is {date.today().isoformat()} — weigh recency accordingly."

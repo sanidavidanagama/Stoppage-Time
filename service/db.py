@@ -21,7 +21,7 @@ def create_session(session_id: str, home_team: str, away_team: str, source: str 
         "fixture_name": f"{home_team} vs {away_team}",
         "home_team": home_team,
         "away_team": away_team,
-        "status": "running",
+        "status": "queued",
         "source": source,
     }
     with httpx.Client(headers=_headers(), timeout=15) as client:
@@ -30,13 +30,18 @@ def create_session(session_id: str, home_team: str, away_team: str, source: str 
 
 
 def update_session_status(session_id: str, status: str) -> None:
-    with httpx.Client(headers=_headers(), timeout=15) as client:
-        resp = client.patch(
-            f"{settings.ST_SUPABASE_URL}/rest/v1/sessions",
-            params={"session_id": f"eq.{session_id}"},
-            json={"status": status},
-        )
-    resp.raise_for_status()
+    """Best-effort, like every other telemetry write here — a status ping
+    that fails must never take down a run that's mid-decision."""
+    try:
+        with httpx.Client(headers=_headers(), timeout=15) as client:
+            resp = client.patch(
+                f"{settings.ST_SUPABASE_URL}/rest/v1/sessions",
+                params={"session_id": f"eq.{session_id}"},
+                json={"status": status},
+            )
+        resp.raise_for_status()
+    except Exception as e:
+        print(f"[db] update_session_status({session_id!r}, {status!r}) failed (non-fatal): {e}")
 
 
 def log_step(session_id: str, step_type: str, tool: str, model: str = None,
