@@ -52,7 +52,7 @@ def get_polymarket_prices(home_name: str, away_name: str) -> str:
     return _summarize(data, outcomes, home_name, away_name)
 
 
-def get_market_data(home_name: str, away_name: str) -> dict | None:
+def get_market_data(home_name: str, away_name: str, kickoff_hint: int | str | None = None) -> dict | None:
     """
     Get raw Polymarket data for a fixture, with outcomes explicitly mapped
     to home/draw/away using Sportmonks short_codes.
@@ -61,12 +61,29 @@ def get_market_data(home_name: str, away_name: str) -> dict | None:
     short_codes don't match any outcome name, returns the data with
     mapping_ok=False so the caller can skip safely.
     """
-    fixture = find_fixture_by_teams(home_name, away_name)
+    fixture = find_fixture_by_teams(home_name, away_name, kickoff_hint=kickoff_hint)
     if fixture is None:
         return None
 
+    home_code = (fixture["home"].get("short_code") or "").upper()
+    away_code = (fixture["away"].get("short_code") or "").upper()
+
+    return _fetch_and_map_market(fixture["fixture_id"], home_code, away_code)
+
+
+def get_market_data_by_fixture_id(fixture_id: int, home_code: str, away_code: str) -> dict | None:
+    """
+    Same as get_market_data, but skips the team-name schedule lookup
+    entirely — used at order-confirmation time, when the fixture_id and
+    codes are already pinned on a bet row and we just need a FRESH price,
+    not a fresh (and potentially ambiguous) team-name resolution.
+    """
+    return _fetch_and_map_market(fixture_id, (home_code or "").upper(), (away_code or "").upper())
+
+
+def _fetch_and_map_market(fixture_id: int, home_code: str, away_code: str) -> dict | None:
     with _client() as client:
-        resp = client.get(f"{settings.POLYMARKET_MARKET_URL}/{fixture['fixture_id']}")
+        resp = client.get(f"{settings.POLYMARKET_MARKET_URL}/{fixture_id}")
 
     if resp.status_code == 404:
         return None
@@ -77,11 +94,8 @@ def get_market_data(home_name: str, away_name: str) -> dict | None:
     if not outcomes:
         return None
 
-    home_code = (fixture["home"].get("short_code") or "").upper()
-    away_code = (fixture["away"].get("short_code") or "").upper()
-
     result = {
-        "fixture_id": fixture["fixture_id"],
+        "fixture_id": fixture_id,
         "home": {"code": home_code, "price": None},
         "draw": {"price": None},
         "away": {"code": away_code, "price": None},

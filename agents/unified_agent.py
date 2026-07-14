@@ -11,8 +11,7 @@ from service.h2h import get_h2h
 from service.polymarket import get_market_data
 from service.wallet import get_available_balance
 from service.db import create_session, update_session_status, save_bet, update_bet, get_recent_bets
-from service.orders import place_order, poll_order
-from service.telemetry import record_thinking, record_prediction, record_order, record_observing
+from service.telemetry import record_thinking, record_prediction, record_observing
 
 _PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "unified_agent_prompt.md"
 
@@ -39,7 +38,8 @@ def _parse(text):
     return json.loads(m.group(0)) if m else None
 
 
-def run_unified_agent(home_name: str, away_name: str, round_info: str, session_id: str) -> dict:
+def run_unified_agent(home_name: str, away_name: str, round_info: str, session_id: str,
+                       kickoff_hint: int | str | None = None) -> dict:
     # Session must exist before ANY log or bet write — both tables have a
     # hard FK on session_id now.
     create_session(session_id, home_name, away_name, source="v2")
@@ -47,12 +47,12 @@ def run_unified_agent(home_name: str, away_name: str, round_info: str, session_i
     record_observing(session_id, f"Unified single-call run: {home_name} vs {away_name}", "manual_run")
     update_session_status(session_id, "planning")
 
-    fixture = find_fixture_by_teams(home_name, away_name)
+    fixture = find_fixture_by_teams(home_name, away_name, kickoff_hint=kickoff_hint)
     if fixture is None:
         update_session_status(session_id, "error")
         return {"decision": "error", "reason": "fixture_not_found"}
 
-    market = get_market_data(home_name, away_name)
+    market = get_market_data(home_name, away_name, kickoff_hint=kickoff_hint)
     if market is None or not market.get("mapping_ok"):
         update_session_status(session_id, "error")
         return {"decision": "error", "reason": "no_live_market", "bet_id": None}
@@ -147,24 +147,14 @@ def run_unified_agent(home_name: str, away_name: str, round_info: str, session_i
     stake = max(5.0, min(stake, 20.0))
     edge_pp = round((prob - (market["draw"]["price"] if outcome == "draw" else market[outcome]["price"])) * 100, 1)
 
-    prediction_record_id = record_prediction(session_id, fixture["fixture_id"], code, prob, result.get("reasoning", ""))
-
-    update_session_status(session_id, "betting")
-
-    order_result = place_order(fixture["fixture_id"], code, stake, market[outcome]["price"] if outcome != "draw" else market["draw"]["price"])
-    order_id = order_result.get("order_id")
-    order_info = {}
-    if order_id:
-        final_order = poll_order(order_id)
-        order_info = {"order_id": order_id, "order_status": final_order.get("status"), "fill_price": final_order.get("open_avg_fill_price")}
-        record_order(session_id, fixture["fixture_id"], code, stake, f"Bought ${stake} of {code}", upstream_id=prediction_record_id)
+    record_prediction(session_id, fixture["fixture_id"], code, prob, result.get("reasoning", ""))
 
     update_bet(bet_id, {
         "decision": outcome, "stake_usd": stake, "edge_pp": edge_pp,
         "home_probability": result["home_win_probability"], "draw_probability": result["draw_probability"],
         "away_probability": result["away_win_probability"], "confidence": result["confidence"],
-        "bet_reason": result["reasoning"], **order_info,
+        "bet_reason": result["reasoning"],
     })
-    update_session_status(session_id, "completed")
+    update_session_status(session_id, "awaiting_order")
 
-    return {"decision": outcome, "stake_usd": stake, "reasoning": result["reasoning"], "bet_id": bet_id, **order_info}
+    return {"decision": outcome, "stake_usd": stake, "reasoning": result["reasoning"], "bet_id": bet_id}

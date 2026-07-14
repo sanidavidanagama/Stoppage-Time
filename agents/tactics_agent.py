@@ -48,8 +48,9 @@ def tactics_analyse(
     focus_question: str | None = None,
     session_id: str | None = None,
     bet_id: str | None = None,
+    kickoff_hint: int | str | None = None,
 ) -> dict:
-    fixture = find_fixture_by_teams(home_team, away_team)
+    fixture = find_fixture_by_teams(home_team, away_team, kickoff_hint=kickoff_hint)
     if fixture is None:
         return {
             "available": False,

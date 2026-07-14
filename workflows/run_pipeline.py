@@ -10,8 +10,10 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-def run(home: str, away: str, round_info: str):
-    session_id = f"live-{uuid.uuid4().hex[:8]}"
+def run(home: str, away: str, round_info: str, session_id: str | None = None,
+        kickoff_hint: int | str | None = None):
+    if session_id is None:
+        session_id = f"live-{uuid.uuid4().hex[:8]}"
     set_context(session_id)
 
     # Session must exist before ANY log or bet write — both agent_logs and
@@ -20,7 +22,7 @@ def run(home: str, away: str, round_info: str):
 
     record_observing(session_id, f"Evaluating {home} vs {away} ({round_info})", "manual_run")
 
-    context = run_planning(home, away, round_info, session_id)
+    context = run_planning(home, away, round_info, session_id, kickoff_hint=kickoff_hint)
     prediction = run_reasoning(home_name=home, away_name=away, round_info=round_info,
                                 pre_gathered_context=context, session_id=session_id)
     if not prediction.get("available"):
@@ -28,7 +30,18 @@ def run(home: str, away: str, round_info: str):
         print(prediction)
         return prediction
 
-    decision = run_betting_agent(home, away, prediction, session_id)
-    update_session_status(session_id, "skipped" if decision.get("decision") == "skip" else "completed")
+    decision = run_betting_agent(home, away, prediction, session_id, kickoff_hint=kickoff_hint)
+    update_session_status(session_id, "skipped" if decision.get("decision") == "skip" else "awaiting_order")
     print(decision)
     return decision
+
+
+if __name__ == "__main__":
+    from dotenv import load_dotenv
+    load_dotenv()
+    from service.order_execution import execute_order
+
+    result = run(home="Argentina", away="Switzerland", round_info="Quarter-final")
+    bet_id = result.get("bet_id")
+    if bet_id and result.get("decision") != "skip":
+        print(execute_order(bet_id))

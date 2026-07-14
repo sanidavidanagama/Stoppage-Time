@@ -9,6 +9,8 @@ Schedule service — fixture discovery and team form builder.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import httpx
 
 from config.settings import settings
@@ -53,22 +55,50 @@ def fetch_schedule() -> dict:
     return _schedule_cache
 
 
+def _parse_kickoff_hint(hint: int | str | None) -> int | None:
+    """Best-effort parse of a kickoff hint into a unix timestamp. Never raises —
+    an unparseable hint just means disambiguation falls back to first-match."""
+    if hint is None:
+        return None
+    if isinstance(hint, int):
+        return hint
+    try:
+        return int(hint)
+    except (TypeError, ValueError):
+        pass
+    try:
+        s = hint.replace("Z", "+00:00") if hint.endswith("Z") else hint
+        dt = datetime.fromisoformat(s)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return int(dt.timestamp())
+    except (TypeError, ValueError):
+        return None
+
+
 def find_fixture_by_teams(
     home_name: str,
     away_name: str,
     schedule: list[dict] | None = None,
+    kickoff_hint: int | str | None = None,
 ) -> dict | None:
     """
     Resolve human-readable team names (e.g. "Paraguay", "France") to a
     Sportmonks fixture_id plus both teams' participant IDs.
 
     Name matching is case-insensitive substring match against the fixture's
-    "name" field (e.g. "Paraguay vs France").
+    "name" field (e.g. "Paraguay vs France"). If the same two teams meet
+    more than once in the tournament, all matches are ambiguous by name
+    alone — kickoff_hint (a unix timestamp or ISO string) picks the
+    candidate whose actual kickoff is closest to it. With no hint, or a
+    single match, behavior is unchanged (first match found).
 
     Args:
         home_name: Home team name.
         away_name: Away team name.
         schedule: Optional pre-fetched schedule. If None, fetches (cached).
+        kickoff_hint: Optional unix timestamp or ISO datetime string to
+            disambiguate rematches between the same two teams.
 
     Returns:
         {
@@ -86,6 +116,7 @@ def find_fixture_by_teams(
 
     all_fixtures = _flatten_fixtures(schedule)
 
+    candidates = []
     for fix in all_fixtures:
         if fix.get("placeholder", False):
             continue
@@ -100,16 +131,27 @@ def find_fixture_by_teams(
         if not home_p or not away_p:
             continue
 
-        return {
-            "fixture_id":        fix["id"],
-            "name":              name,
-            "kickoff":           fix.get("starting_at"),
-            "kickoff_timestamp": fix.get("starting_at_timestamp"),
-            "home": {"team_id": home_p["id"], "name": home_p.get("name", home_name), "short_code": home_p.get("short_code")},
-            "away": {"team_id": away_p["id"], "name": away_p.get("name", away_name), "short_code": away_p.get("short_code")},
-        }
+        candidates.append((fix, name, home_p, away_p))
 
-    return None
+    if not candidates:
+        return None
+
+    fix, name, home_p, away_p = candidates[0]
+    if len(candidates) > 1:
+        hint_ts = _parse_kickoff_hint(kickoff_hint)
+        if hint_ts is not None:
+            fix, name, home_p, away_p = min(
+                candidates, key=lambda c: abs(c[0].get("starting_at_timestamp", 0) - hint_ts)
+            )
+
+    return {
+        "fixture_id":        fix["id"],
+        "name":              name,
+        "kickoff":           fix.get("starting_at"),
+        "kickoff_timestamp": fix.get("starting_at_timestamp"),
+        "home": {"team_id": home_p["id"], "name": home_p.get("name", home_name), "short_code": home_p.get("short_code")},
+        "away": {"team_id": away_p["id"], "name": away_p.get("name", away_name), "short_code": away_p.get("short_code")},
+    }
 
 def clear_schedule_cache():
     """Clear the cached schedule (useful for testing)."""

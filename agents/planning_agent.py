@@ -6,7 +6,8 @@ from service.stair_ai_ledger import planning as ledger_planning, tool_calling as
 from service.db import log_step, update_session_status
 
 
-def run_planning(home_team: str, away_team: str, round_info: str, session_id: str, bet_id: str | None = None) -> str:
+def run_planning(home_team: str, away_team: str, round_info: str, session_id: str, bet_id: str | None = None,
+                  kickoff_hint: int | str | None = None) -> str:
     update_session_status(session_id, "planning")
 
     goal = f"Gather pre-match context and evaluate a betting decision for {home_team} vs {away_team}"
@@ -34,7 +35,7 @@ def run_planning(home_team: str, away_team: str, round_info: str, session_id: st
         print(f"[planning] Ledger submit failed (non-fatal): {e}")
 
     tactics_result = tactics_analyse(home_team=home_team, away_team=away_team, round_info=round_info,
-                                      session_id=session_id, bet_id=bet_id)
+                                      session_id=session_id, bet_id=bet_id, kickoff_hint=kickoff_hint)
     _log_tool_call(session_id, bet_id, "consult_tactics", {"home_team": home_team, "away_team": away_team}, tactics_result)
 
     injuries = get_news(home_team, away_team, "injuries", session_id=session_id, bet_id=bet_id)

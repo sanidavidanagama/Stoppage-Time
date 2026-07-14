@@ -110,10 +110,68 @@ def get_logs_for_bet(bet_id: str) -> list[dict]:
     bet = get_bet_by_id(bet_id)
     if bet is None:
         return []
+    return get_logs_for_session(bet["session_id"])
+
+
+def get_session(session_id: str) -> dict | None:
+    with httpx.Client(headers=_headers(), timeout=15) as client:
+        resp = client.get(
+            f"{settings.ST_SUPABASE_URL}/rest/v1/sessions",
+            params={"select": "*", "session_id": f"eq.{session_id}"},
+        )
+    resp.raise_for_status()
+    rows = resp.json()
+    return rows[0] if rows else None
+
+
+def get_logs_for_session(session_id: str) -> list[dict]:
+    """Logs can exist before any bet row does (e.g. the fixture/market lookup
+    happens before save_bet), so this doesn't go through agent_bets at all."""
     with httpx.Client(headers=_headers(), timeout=15) as client:
         resp = client.get(
             f"{settings.ST_SUPABASE_URL}/rest/v1/agent_logs",
-            params={"select": "*", "session_id": f"eq.{bet['session_id']}", "order": "created_at.asc"},
+            params={"select": "*", "session_id": f"eq.{session_id}", "order": "created_at.asc"},
+        )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def get_bet_by_session_id(session_id: str) -> dict | None:
+    """Each session produces exactly one bet row today (application-enforced,
+    not DB-enforced) — returns the first/only one, or None."""
+    with httpx.Client(headers=_headers(), timeout=15) as client:
+        resp = client.get(
+            f"{settings.ST_SUPABASE_URL}/rest/v1/agent_bets",
+            params={"select": "*", "session_id": f"eq.{session_id}"},
+        )
+    resp.raise_for_status()
+    rows = resp.json()
+    return rows[0] if rows else None
+
+
+def get_bets_page(limit: int = 20, offset: int = 0) -> tuple[list[dict], int]:
+    """Paginated bets list for a history page. Returns (rows, total_count)."""
+    limit = max(1, min(limit, 100))
+    offset = max(0, offset)
+    headers = {**_headers(), "Prefer": "count=exact"}
+    with httpx.Client(headers=headers, timeout=15) as client:
+        resp = client.get(
+            f"{settings.ST_SUPABASE_URL}/rest/v1/agent_bets",
+            params={"select": "*", "order": "created_at.desc", "limit": str(limit), "offset": str(offset)},
+        )
+    resp.raise_for_status()
+    content_range = resp.headers.get("content-range", "*/0")
+    total = int(content_range.split("/")[-1]) if content_range.split("/")[-1].isdigit() else 0
+    return resp.json(), total
+
+
+def get_all_bets(limit: int = 1000) -> list[dict]:
+    """Fetch-all for stats aggregation. Fine at current scale — would need
+    real pagination if bet volume grows a lot."""
+    with httpx.Client(headers=_headers(), timeout=15) as client:
+        resp = client.get(
+            f"{settings.ST_SUPABASE_URL}/rest/v1/agent_bets",
+            params={"select": "*", "limit": str(limit)},
         )
     resp.raise_for_status()
     return resp.json()

@@ -84,8 +84,11 @@ class Settings(BaseSettings):
     MAX_NEWS_CALLS:    int = 3
     MAX_H2H_CALLS:     int = 3
     
-    MIN_STAKE_USD:  float = 5.0   
+    MIN_STAKE_USD:  float = 5.0
     MAX_STAKE_PCT:  float = 0.15
+
+    # --- Stats ---
+    STARTING_BALANCE_USD: float = 100.0
 
 
     @property
