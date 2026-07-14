@@ -3,8 +3,8 @@
 service/telemetry.py
 
 One call, two writes: every LLM call, tool call, and pipeline step gets
-recorded to both Supabase (v2_logs) and Stair AI's Reasoning Ledger. Both
-are best-effort — a logging failure never blocks a real decision.
+recorded to both Supabase (agent_logs) and Stair AI's Reasoning Ledger.
+Both are best-effort — a logging failure never blocks a real decision.
 """
 
 from config.settings import settings
@@ -22,7 +22,6 @@ from service.stair_ai_ledger import (
 
 
 def record_observing(session_id: str, description: str, source: str) -> None:
-    """Record what triggered this decision cycle."""
     try:
         log_step(session_id=session_id, step_type="Observing", tool="pipeline", response=description)
     except Exception as e:
@@ -33,10 +32,9 @@ def record_observing(session_id: str, description: str, source: str) -> None:
         print(f"[telemetry] Ledger Observing submit failed (non-fatal): {e}")
 
 
-def record_planning(session_id: str, goal: str, steps: list[str], bet_id: str | None = None) -> None:
-    """Record the plan for this decision cycle."""
+def record_planning(session_id: str, goal: str, steps: list[str]) -> None:
     try:
-        log_step(session_id=session_id, step_type="Planning", tool="planning", bet_id=bet_id, response=f"{goal}: {steps}")
+        log_step(session_id=session_id, step_type="Planning", tool="planning", response=f"{goal}: {steps}")
     except Exception as e:
         print(f"[telemetry] Supabase Planning log failed (non-fatal): {e}")
     try:
@@ -47,19 +45,15 @@ def record_planning(session_id: str, goal: str, steps: list[str], bet_id: str | 
 
 def record_thinking(
     session_id: str,
-    bet_id: str | None,
+    bet_id: str | None,   # kept for call-site compatibility, not used in the DB write
     tool: str,
     model: str,
     prompt: str,
     response: str,
     internal_reasoning: str = "",
 ) -> None:
-    """Record one LLM call (an agent's own reasoning step)."""
     try:
-        log_step(
-            session_id=session_id, step_type="Thinking", tool=tool, bet_id=bet_id,
-            model=model, prompt=prompt, response=response,
-        )
+        log_step(session_id=session_id, step_type="Thinking", tool=tool, model=model, prompt=prompt, response=response)
     except Exception as e:
         print(f"[telemetry] Supabase Thinking log failed (non-fatal): {e}")
 
@@ -77,18 +71,14 @@ def record_thinking(
 
 def record_tool_call(
     session_id: str,
-    bet_id: str | None,
+    bet_id: str | None,   # kept for call-site compatibility, not used in the DB write
     tool_name: str,
     params: dict,
     result_summary: str,
     success: bool = True,
 ) -> None:
-    """Record one tool invocation (e.g. consult_tactics, get_fixture_news)."""
     try:
-        log_step(
-            session_id=session_id, step_type="ToolCalling", tool=tool_name, bet_id=bet_id,
-            prompt=str(params), response=result_summary,
-        )
+        log_step(session_id=session_id, step_type="ToolCalling", tool=tool_name, prompt=str(params), response=result_summary)
     except Exception as e:
         print(f"[telemetry] Supabase ToolCalling log failed (non-fatal): {e}")
 
@@ -104,11 +94,6 @@ def record_tool_call(
 
 
 def record_prediction(session_id: str, fixture_id, outcome: str, probability: float, notes: str = "") -> str | None:
-    """
-    Submit the required Acting/prediction record. Returns the server-assigned
-    record_id (needed as the order record's upstream_record_id), or None if
-    the submission failed.
-    """
     try:
         result = submit_records(ledger_acting_prediction(session_id, fixture_id, outcome, probability, notes))
         records = result.get("records", [])
@@ -124,10 +109,10 @@ def record_order(session_id: str, fixture_id, team_code: str, usd_size: float, s
     except Exception as e:
         print(f"[telemetry] Ledger Acting/order submit failed (non-fatal): {e}")
 
+
 def record_reflecting(session_id: str, bet_id: str, output_payload: str) -> None:
-    """Record a post-settlement self-reflection (personality update or not)."""
     try:
-        log_step(session_id=session_id, step_type="Reflecting", tool="reflecting", bet_id=bet_id, response=output_payload)
+        log_step(session_id=session_id, step_type="Reflecting", tool="reflecting", response=output_payload)
     except Exception as e:
         print(f"[telemetry] Supabase Reflecting log failed (non-fatal): {e}")
     try:

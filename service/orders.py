@@ -56,18 +56,20 @@ def poll_order(order_id: str, max_wait_seconds: int = 30, interval: int = 5) -> 
     attempts = max_wait_seconds // interval
     last = {}
 
-    for _ in range(attempts):
+    for i in range(attempts):
         time.sleep(interval)
         try:
             with httpx.Client(headers=settings.H_ARENA, timeout=10) as client:
                 resp = client.get(f"{settings.ARENA}/api/v1/arena/orders/{order_id}")
             if not resp.ok:
+                print(f"[poll_order] attempt {i+1}: HTTP {resp.status_code} — {resp.text[:200]}")
                 continue
             last = resp.json()
             status = last.get("status")
-            if status in ("completed", "rejected"):
+            if status in ("completed", "rejected", "filled", "settled"):
                 return last
-        except Exception:
+        except Exception as e:
+            print(f"[poll_order] attempt {i+1} exception: {e}")
             continue
 
     return last or {"status": "unknown", "reason": "polling timed out with no response"}
