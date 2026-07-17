@@ -11,12 +11,16 @@ full detail (session + bet + logs) as GET /api/history/{session_id}, so a
 client can review the reasoning before calling POST /api/fixture/{id}/order.
 """
 
-from fastapi import APIRouter
+import httpx
+from fastapi import APIRouter, HTTPException
 
-from service.db import get_sessions_by_status, get_bet_by_session_id, get_logs_for_session
+from service.db import (
+    get_sessions_by_status, get_session, get_bet_by_session_id,
+    get_logs_for_session, delete_session_cascade,
+)
 from models.common import SessionOut, BetOut, LogEntryOut
 from models.history import HistoryDetailResponse
-from models.orders import AwaitingOrdersResponse
+from models.orders import AwaitingOrdersResponse, DeleteAwaitingOrderResponse
 
 router = APIRouter(prefix="/api/orders", tags=["orders"])
 
@@ -43,3 +47,34 @@ def list_awaiting_orders():
         ))
 
     return AwaitingOrdersResponse(items=items, count=len(items))
+
+
+@router.delete("/awaiting/{session_id}", response_model=DeleteAwaitingOrderResponse)
+def delete_awaiting_order(session_id: str):
+    """Delete an awaiting_order session and everything temporary that was
+    created for it — its agent_logs rows, its agent_bets row, and finally
+    the session row itself, strictly in that order (see
+    service/db.py::delete_session_cascade for why the order matters).
+    Deliberately scoped to awaiting_order only — this is cleanup for a
+    decision nobody acted on, not a general "delete any session" endpoint,
+    so anything else refuses with 409 rather than silently deleting it."""
+    session = get_session(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="session not found")
+
+    if session.get("status") != AWAITING_STATUS:
+        raise HTTPException(
+            status_code=409,
+            detail=f"session is not awaiting_order (status: {session.get('status')}) — "
+                   f"this endpoint only deletes awaiting orders, refusing to touch anything else",
+        )
+
+    try:
+        result = delete_session_cascade(session_id)
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"delete failed partway through: {e.response.text}",
+        )
+
+    return DeleteAwaitingOrderResponse(session_id=session_id, **result)

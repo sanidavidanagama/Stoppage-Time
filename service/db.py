@@ -201,6 +201,59 @@ def get_all_bets(limit: int = 1000) -> list[dict]:
     return resp.json()
 
 
+def delete_logs_for_session(session_id: str) -> int:
+    with httpx.Client(headers=_headers(), timeout=15) as client:
+        resp = client.delete(
+            f"{settings.ST_SUPABASE_URL}/rest/v1/agent_logs",
+            params={"session_id": f"eq.{session_id}"},
+        )
+    resp.raise_for_status()
+    return len(resp.json())
+
+
+def delete_bets_for_session(session_id: str) -> int:
+    with httpx.Client(headers=_headers(), timeout=15) as client:
+        resp = client.delete(
+            f"{settings.ST_SUPABASE_URL}/rest/v1/agent_bets",
+            params={"session_id": f"eq.{session_id}"},
+        )
+    resp.raise_for_status()
+    return len(resp.json())
+
+
+def delete_session(session_id: str) -> bool:
+    with httpx.Client(headers=_headers(), timeout=15) as client:
+        resp = client.delete(
+            f"{settings.ST_SUPABASE_URL}/rest/v1/sessions",
+            params={"session_id": f"eq.{session_id}"},
+        )
+    resp.raise_for_status()
+    return len(resp.json()) > 0
+
+
+def delete_session_cascade(session_id: str) -> dict:
+    """Delete a session and everything that references it, in strict FK
+    order — the reverse of create_session's "session must exist first"
+    requirement. Both agent_logs.session_id and agent_bets.session_id are
+    hard FKs onto sessions.session_id, so those must be deleted BEFORE the
+    sessions row itself, or the final delete violates the FK constraint.
+
+    Not wrapped in a DB transaction (plain PostgREST calls, one per table)
+    — if a later step fails, earlier deletes have already happened. Steps
+    run in the only order that can ever succeed for a real cascade, so a
+    partial failure always leaves an already-safe state (children gone,
+    parent row orphaned but harmless) rather than a broken one.
+    """
+    logs_deleted = delete_logs_for_session(session_id)
+    bets_deleted = delete_bets_for_session(session_id)
+    session_deleted = delete_session(session_id)
+    return {
+        "logs_deleted": logs_deleted,
+        "bets_deleted": bets_deleted,
+        "session_deleted": session_deleted,
+    }
+
+
 def get_current_personality() -> str:
     with httpx.Client(headers=_headers(), timeout=15) as client:
         resp = client.get(
