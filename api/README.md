@@ -18,6 +18,7 @@ Base URL in local dev: `http://localhost:8000`
   - [`POST /api/fixture/{session_id}/order`](#post-apifixturesession_idorder)
   - [`GET /api/history`](#get-apihistory)
   - [`GET /api/history/{session_id}`](#get-apihistorysession_id)
+  - [`GET /api/orders/awaiting`](#get-apiordersawaiting)
   - [`GET /api/agent/stats`](#get-apiagentstats)
   - [`POST /api/settlement/run`](#post-apisettlementrun)
   - [`GET /health`](#get-health)
@@ -80,9 +81,9 @@ a DB constraint).
 | `searching` | A news search call is running. |
 | `reasoning` | The reasoning LLM call is running. |
 | `betting` | The betting LLM call is running (multi-agent only — decides stake/confirm). |
-| `awaiting_order` | A decision has been made (`agent_bets.decision` is `home`/`draw`/`away`, `stake_usd` set) but no order has been placed yet. **This is the state to watch for before calling `POST /order`.** |
+| `awaiting_order` | A decision has been made (`agent_bets.decision` is `home`/`draw`/`away`, `stake_usd` set) but no order has been placed yet. **This is the state to watch for before calling `POST /order`.** Every session at this status is listable via [`GET /api/orders/awaiting`](#get-apiordersawaiting). |
 | `skipped` | The agent decided not to bet — no order is possible for this session. |
-| `completed` | An order was placed successfully. |
+| `completed` | An order was placed successfully. Every session at this status is listable via [`GET /api/history`](#get-apihistory). |
 | `error` | Something failed (fixture not found, no live market, unparseable LLM output, order rejected, etc). |
 
 Note: the `unified` pipeline never produces `skipped` — its prompt forbids
@@ -208,8 +209,13 @@ Calling this twice on the same session is safe — the second call returns
 
 ### `GET /api/history`
 
-Unauthenticated. Paginated list of **all** bets across every session, most
-recent first. Does **not** include per-session logs — use
+Unauthenticated. Paginated list of bets **whose session status is
+`completed`** — an order was actually placed, most recent first. Sessions
+still deciding, awaiting order confirmation, skipped, or errored are
+excluded entirely; see [`GET /api/orders/awaiting`](#get-apiordersawaiting)
+for the "decided but not yet ordered" case, and
+[`GET /api/fixture/{session_id}`](#get-apifixturesession_id) for anything
+still in flight. Does **not** include per-session logs — use
 `GET /api/history/{session_id}` for that.
 
 **Query params**:
@@ -229,17 +235,47 @@ curl "localhost:8000/api/history?limit=20&offset=0"
 
 ### `GET /api/history/{session_id}`
 
-Unauthenticated. Full record for one session: the session row, its bet, and
-every log entry — the "click into a bet from the history list" view.
+Unauthenticated. Full record for one **completed** session: the session
+row, its bet, and every log entry — the "click into a bet from the history
+list" view.
 
 **Response** `200` → [`HistoryDetailResponse`](#historydetailresponse)
 
-**Errors**: `404` if the session doesn't exist, **or** if it exists but has
-no bet row yet (history implies something concluded — for an in-flight
-session, use `GET /api/fixture/{session_id}` instead).
+**Errors**: `404` if the session doesn't exist, if its status isn't
+`completed` (use `GET /api/fixture/{session_id}` for an in-flight session,
+or `GET /api/orders/awaiting` for one sitting at `awaiting_order`), or —
+defensively — if it's somehow `completed` with no bet row on record.
 
 ```bash
 curl localhost:8000/api/history/unified-a1b2c3d4
+```
+
+---
+
+### `GET /api/orders/awaiting`
+
+Unauthenticated. Every session currently sitting at status
+`awaiting_order` — a decision has been made and a stake set, but no order
+has been placed yet. Same full-detail shape as
+`GET /api/history/{session_id}` (session + bet + logs) for **each** item,
+not just a bet summary, since the point of this endpoint is reviewing the
+reasoning before deciding whether to call
+[`POST /api/fixture/{session_id}/order`](#post-apifixturesession_idorder).
+
+This is the "come back later" view: a fixture gets analysed via
+`POST /api/fixture`, and separately — possibly from a different screen, at
+a different time — someone decides whether to actually place that order.
+This endpoint is how a client finds what's currently waiting on that
+decision, without needing to already know the `session_id`.
+
+Not paginated — the awaiting-order set is expected to stay small (it's an
+actionable queue, not a growing history), so this always returns
+everything currently at that status.
+
+**Response** `200` → [`AwaitingOrdersResponse`](#awaitingordersresponse)
+
+```bash
+curl localhost:8000/api/orders/awaiting
 ```
 
 ---
@@ -462,6 +498,14 @@ All schemas are Pydantic v2 models. Source of truth: `models/*.py`.
 | `roi_percentage` | `number \| null` |
 | `biggest_profit_usd` | `number \| null` |
 | `biggest_loss_usd` | `number \| null` |
+
+### `AwaitingOrdersResponse`
+*(`models/orders.py`)*
+
+| Field | Type |
+|---|---|
+| `items` | [`HistoryDetailResponse`](#historydetailresponse)`[]` |
+| `count` | `number` |
 
 ### `SettlementResult`
 *(`models/settlement.py`)*
