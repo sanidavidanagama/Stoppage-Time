@@ -149,15 +149,39 @@ def get_bet_by_session_id(session_id: str) -> dict | None:
     return rows[0] if rows else None
 
 
-def get_bets_page(limit: int = 20, offset: int = 0) -> tuple[list[dict], int]:
-    """Paginated bets list for a history page. Returns (rows, total_count)."""
+def get_sessions_by_status(status: str) -> list[dict]:
+    """agent_bets has no status column of its own — status lives on sessions.
+    Filtering bets by session status is a two-step lookup, starting here."""
+    with httpx.Client(headers=_headers(), timeout=15) as client:
+        resp = client.get(
+            f"{settings.ST_SUPABASE_URL}/rest/v1/sessions",
+            params={"select": "*", "status": f"eq.{status}", "order": "created_at.desc"},
+        )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def get_bets_by_session_status(status: str, limit: int = 20, offset: int = 0) -> tuple[list[dict], int]:
+    """Paginated bets list, restricted to sessions currently at the given
+    status. Returns (rows, total_count)."""
     limit = max(1, min(limit, 100))
     offset = max(0, offset)
+
+    session_ids = [s["session_id"] for s in get_sessions_by_status(status)]
+    if not session_ids:
+        return [], 0
+
     headers = {**_headers(), "Prefer": "count=exact"}
     with httpx.Client(headers=headers, timeout=15) as client:
         resp = client.get(
             f"{settings.ST_SUPABASE_URL}/rest/v1/agent_bets",
-            params={"select": "*", "order": "created_at.desc", "limit": str(limit), "offset": str(offset)},
+            params={
+                "select": "*",
+                "session_id": f"in.({','.join(session_ids)})",
+                "order": "created_at.desc",
+                "limit": str(limit),
+                "offset": str(offset),
+            },
         )
     resp.raise_for_status()
     content_range = resp.headers.get("content-range", "*/0")
