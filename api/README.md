@@ -19,6 +19,7 @@ Base URL in local dev: `http://localhost:8000`
   - [`GET /api/history`](#get-apihistory)
   - [`GET /api/history/{session_id}`](#get-apihistorysession_id)
   - [`GET /api/orders/awaiting`](#get-apiordersawaiting)
+  - [`DELETE /api/orders/awaiting/{session_id}`](#delete-apiordersawaitingsession_id)
   - [`GET /api/agent/stats`](#get-apiagentstats)
   - [`POST /api/settlement/run`](#post-apisettlementrun)
   - [`GET /health`](#get-health)
@@ -280,6 +281,62 @@ curl localhost:8000/api/orders/awaiting
 
 ---
 
+### `DELETE /api/orders/awaiting/{session_id}`
+
+Unauthenticated. Deletes an `awaiting_order` session and everything
+temporary that was created for it — a decision nobody acted on. **Only
+works on sessions currently at `awaiting_order`** — anything else (still
+running, already completed, skipped, errored) is refused with `409` rather
+than deleted, so this can't be used as a general-purpose "delete any
+session" endpoint by accident.
+
+Deletes in strict order, and the order matters: `agent_logs` rows for the
+session, then the `agent_bets` row, then finally the `sessions` row itself.
+Both `agent_logs.session_id` and `agent_bets.session_id` are hard foreign
+keys onto `sessions.session_id` — deleting the session first would violate
+those constraints (the exact mirror of why `create_session` has to run
+*before* any log/bet write, just in reverse for teardown). See
+`service/db.py::delete_session_cascade`.
+
+**Path param**: `session_id`
+
+**Response** `200` → [`DeleteAwaitingOrderResponse`](#deleteawaitingorderresponse)
+
+```bash
+curl -X DELETE localhost:8000/api/orders/awaiting/unified-a1b2c3d4
+```
+
+| HTTP | Meaning |
+|---|---|
+| `200` | Deleted — logs, bet, and session all removed. |
+| `404` | No session with this id exists. |
+| `409` | Session exists but isn't `awaiting_order` — refused, nothing deleted. |
+| `500` | The cascade failed partway through (see notes below). |
+
+Notes:
+- **Not transactional.** This makes three separate REST calls, one per
+  table — there's no multi-table transaction available through plain
+  PostgREST. If a later step fails, earlier deletes have already
+  happened; the response's `logs_deleted`/`bets_deleted`/`session_deleted`
+  fields tell you exactly how far it got. Because deletes run in the only
+  order that can ever succeed for a real cascade, a partial failure always
+  leaves a safe state (children gone, parent orphaned but harmless) rather
+  than a broken one — it never fails *because* something else was deleted
+  out of order.
+- **Requires `DELETE` grants in Supabase.** The service role this API
+  authenticates as needs `DELETE` privileges on `agent_logs`, `agent_bets`,
+  and `sessions`. If any of those grants are missing, the call fails with
+  `500` and Supabase's own `42501 permission denied` error surfaced in the
+  response detail — that's a Supabase-side configuration issue, not an API
+  bug. Fix with, in the Supabase SQL editor:
+  ```sql
+  GRANT DELETE ON public.agent_logs TO service_role;
+  GRANT DELETE ON public.agent_bets TO service_role;
+  GRANT DELETE ON public.sessions TO service_role;
+  ```
+
+---
+
 ### `GET /api/agent/stats`
 
 Unauthenticated. Aggregate performance stats across all bets.
@@ -506,6 +563,16 @@ All schemas are Pydantic v2 models. Source of truth: `models/*.py`.
 |---|---|
 | `items` | [`HistoryDetailResponse`](#historydetailresponse)`[]` |
 | `count` | `number` |
+
+### `DeleteAwaitingOrderResponse`
+*(`models/orders.py`)*
+
+| Field | Type |
+|---|---|
+| `session_id` | `string` |
+| `logs_deleted` | `number` — count of `agent_logs` rows removed |
+| `bets_deleted` | `number` — count of `agent_bets` rows removed |
+| `session_deleted` | `boolean` |
 
 ### `SettlementResult`
 *(`models/settlement.py`)*
