@@ -30,8 +30,14 @@ Base URL in local dev: `http://localhost:8000`
 
 ## Auth
 
-Every endpoint is a public read **except** `POST /api/fixture/{session_id}/order`,
-which requires a Bearer JWT.
+Every read (`GET`) endpoint is public. Every endpoint that writes or
+triggers work requires a Bearer JWT:
+
+- `POST /api/fixture` — starts a real reasoning run (LLM calls, API usage);
+  gated to stop random/anonymous callers from spinning up traces.
+- `POST /api/fixture/{session_id}/order` — moves real money.
+- `POST /api/settlement/run` — writes settlement data to `agent_bets`.
+- `DELETE /api/orders/awaiting/{session_id}` — deletes rows.
 
 There is exactly one admin account, defined by `ADMIN_USERNAME`/`ADMIN_PASSWORD`
 in `config/settings.py` (env-overridable). Get a token from `POST /api/auth/login`,
@@ -128,17 +134,21 @@ curl -X POST localhost:8000/api/auth/login -d "username=admin&password=..."
 
 ### `POST /api/fixture`
 
-Unauthenticated. Kicks off a full pipeline run (unified or multi-agent) in
-the background — the request returns immediately with a `session_id`; the
-actual reasoning happens after the response is sent. **Never places an
-order** — it stops once a decision is made (`awaiting_order`/`skipped`).
+**Requires `Authorization: Bearer <token>`.** Kicks off a full pipeline run
+(unified or multi-agent) in the background — the request returns
+immediately with a `session_id`; the actual reasoning happens after the
+response is sent. **Never places an order** — it stops once a decision is
+made (`awaiting_order`/`skipped`). Gated because every call spends real LLM
+tokens and API quota — this isn't a free read.
 
 **Request body** → [`FixtureCreateRequest`](#fixturecreaterequest)
 
 **Response** `200` → [`FixtureCreateResponse`](#fixturecreateresponse)
 
+**Errors**: `401` if missing/invalid token.
+
 ```bash
-curl -X POST localhost:8000/api/fixture -H "Content-Type: application/json" \
+curl -X POST localhost:8000/api/fixture -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -d '{"home":"Argentina","away":"Switzerland","stage":"Quarter-final","agent":"unified","kick_off_time":"2026-07-04T18:00:00Z"}'
 # -> {"session_id": "unified-a1b2c3d4"}
 ```
@@ -283,12 +293,12 @@ curl localhost:8000/api/orders/awaiting
 
 ### `DELETE /api/orders/awaiting/{session_id}`
 
-Unauthenticated. Deletes an `awaiting_order` session and everything
-temporary that was created for it — a decision nobody acted on. **Only
-works on sessions currently at `awaiting_order`** — anything else (still
-running, already completed, skipped, errored) is refused with `409` rather
-than deleted, so this can't be used as a general-purpose "delete any
-session" endpoint by accident.
+**Requires `Authorization: Bearer <token>`.** Deletes an `awaiting_order`
+session and everything temporary that was created for it — a decision
+nobody acted on. **Only works on sessions currently at `awaiting_order`**
+— anything else (still running, already completed, skipped, errored) is
+refused with `409` rather than deleted, so this can't be used as a
+general-purpose "delete any session" endpoint by accident.
 
 Deletes in strict order, and the order matters: `agent_logs` rows for the
 session, then the `agent_bets` row, then finally the `sessions` row itself.
@@ -303,12 +313,13 @@ those constraints (the exact mirror of why `create_session` has to run
 **Response** `200` → [`DeleteAwaitingOrderResponse`](#deleteawaitingorderresponse)
 
 ```bash
-curl -X DELETE localhost:8000/api/orders/awaiting/unified-a1b2c3d4
+curl -X DELETE localhost:8000/api/orders/awaiting/unified-a1b2c3d4 -H "Authorization: Bearer $TOKEN"
 ```
 
 | HTTP | Meaning |
 |---|---|
 | `200` | Deleted — logs, bet, and session all removed. |
+| `401` | Missing/invalid token. |
 | `404` | No session with this id exists. |
 | `409` | Session exists but isn't `awaiting_order` — refused, nothing deleted. |
 | `500` | The cascade failed partway through (see notes below). |
@@ -372,21 +383,26 @@ over every row from `agent_bets` — no server-side SQL aggregation today):
 
 ### `POST /api/settlement/run`
 
-Unauthenticated — no money moves here, this only records facts that already
-happened on-chain. Checks every unsettled bet (`agent_bets` where
-`actual_outcome is null` and `fixture_id` is set — see
+**Requires `Authorization: Bearer <token>`.** No money moves here — this
+only records facts that already happened on-chain — but it does write to
+`agent_bets`, so it's gated the same as the other write endpoints rather
+than left open to anonymous callers. Checks every unsettled bet
+(`agent_bets` where `actual_outcome is null` and `fixture_id` is set — see
 `service/db.py::get_pending_bets`) against Polymarket's real settlement
 data, and for any that have concluded, records `actual_outcome`, `pnl`, and
 `settled_at` on the row (`service/settlement.py::settle_all_pending`).
 
 Idempotent — a bet already settled won't be picked up again on a later run,
 so this is safe to call repeatedly (e.g. on a schedule/cron) with no
-duplicate-processing risk.
+duplicate-processing risk. If automating this on a schedule, the caller
+needs a valid token same as any other client.
 
 **Response** `200` → [`SettlementRunResponse`](#settlementrunresponse)
 
+**Errors**: `401` if missing/invalid token.
+
 ```bash
-curl -X POST localhost:8000/api/settlement/run
+curl -X POST localhost:8000/api/settlement/run -H "Authorization: Bearer $TOKEN"
 ```
 
 ```json
