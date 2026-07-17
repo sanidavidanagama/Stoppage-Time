@@ -37,11 +37,10 @@ Home {market_home}% / Draw {market_draw}% / Away {market_away}%
 ## Rules
 - This market settles on the 90-minute regulation result only. ET/penalties still count as a draw.
 - You MUST place a bet this match — no skipping.
-- Choose a stake between $10 and $30 based on how strong your conviction is — $10 for a close call you're leaning on, $30 for a clear, well-supported edge. Do not default to the maximum out of habit.
+- Choose a stake between $15 and $30 based on how strong your conviction is — $15 for a close call you're leaning on, $30 for a clear, well-supported edge. Do not default to the maximum out of habit.
 - Form your own probability estimate from the tactical and news data BEFORE weighing the market price.
 - Choose the outcome (home/draw/away) you believe offers the best value relative to the market.
 - The market may sometimes highly favour on one team. You must critifically analyse gaps and analyze for a possible low rated team win, or low rated team dragging a draw within 90 minutes. You should reason this with tactics and the evaluate on the market and palce the bet. 
-- You should critically analyse on the current matchup. Both attacking and defensive and determine how likely the match will end up in a draw within 90 minutes. Thr market may misleading in this kind of a situation. Therefore critically analyse team playing styles and considering the stage of the competition what would be the final outcome.
 
 ## Output Format
 Respond with ONLY this JSON:

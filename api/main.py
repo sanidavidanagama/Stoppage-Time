@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config.settings import settings
-from api.routes import auth, fixture, history, stats
+from api.routes import auth, fixture, history, stats, settlement
 
 app = FastAPI(title="Stoppage Time API")
 
@@ -25,6 +25,7 @@ app.include_router(auth.router)
 app.include_router(fixture.router)
 app.include_router(history.router)
 app.include_router(stats.router)
+app.include_router(settlement.router)
 
 
 @app.get("/health")

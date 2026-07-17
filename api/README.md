@@ -19,6 +19,7 @@ Base URL in local dev: `http://localhost:8000`
   - [`GET /api/history`](#get-apihistory)
   - [`GET /api/history/{session_id}`](#get-apihistorysession_id)
   - [`GET /api/agent/stats`](#get-apiagentstats)
+  - [`POST /api/settlement/run`](#post-apisettlementrun)
   - [`GET /health`](#get-health)
 - [Schemas](#schemas)
 - [Error conventions](#error-conventions)
@@ -276,6 +277,52 @@ over every row from `agent_bets` — no server-side SQL aggregation today):
 
 ---
 
+### `POST /api/settlement/run`
+
+Unauthenticated — no money moves here, this only records facts that already
+happened on-chain. Checks every unsettled bet (`agent_bets` where
+`actual_outcome is null` and `fixture_id` is set — see
+`service/db.py::get_pending_bets`) against Polymarket's real settlement
+data, and for any that have concluded, records `actual_outcome`, `pnl`, and
+`settled_at` on the row (`service/settlement.py::settle_all_pending`).
+
+Idempotent — a bet already settled won't be picked up again on a later run,
+so this is safe to call repeatedly (e.g. on a schedule/cron) with no
+duplicate-processing risk.
+
+**Response** `200` → [`SettlementRunResponse`](#settlementrunresponse)
+
+```bash
+curl -X POST localhost:8000/api/settlement/run
+```
+
+```json
+{
+  "checked": 2,
+  "settled": 1,
+  "results": [
+    {"bet_id": "...", "status": "settled", "actual_outcome": "away", "pnl": -5.0},
+    {"bet_id": "...", "status": "still_pending"}
+  ]
+}
+```
+
+Notes:
+- `pnl` is `null` only when `decision` is exactly `None` or `"skip"` —
+  nothing to score. For any other `decision` (including `"pending"`, e.g. a
+  bet whose reasoning call errored out after the row was created), `pnl` is
+  still computed treating a missing `stake_usd` as `$0`: `-stake_usd` if
+  `decision != actual_outcome`, else `0.0` if there's no recorded
+  `fill_price` to size a real payout from. So a `pnl` of exactly `0.0` can
+  mean "correct guess, but no fill price on record" rather than "no
+  activity" — check `decision` and `order_id` on the bet itself to tell
+  those apart. (`_compute_pnl` in `service/settlement.py`, unchanged here.)
+- A bet is marked `settled` (`actual_outcome`/`settled_at` set) as soon as
+  its fixture concludes, independent of whether an order was ever actually
+  placed for it.
+
+---
+
 ### `GET /health`
 
 Unauthenticated. `{"status": "ok"}` — liveness check, not wired to any
@@ -415,6 +462,25 @@ All schemas are Pydantic v2 models. Source of truth: `models/*.py`.
 | `roi_percentage` | `number \| null` |
 | `biggest_profit_usd` | `number \| null` |
 | `biggest_loss_usd` | `number \| null` |
+
+### `SettlementResult`
+*(`models/settlement.py`)*
+
+| Field | Type |
+|---|---|
+| `bet_id` | `string` |
+| `status` | `string` — `"still_pending"` \| `"settled"` |
+| `actual_outcome` | `string \| null` — only set when `status` is `"settled"` |
+| `pnl` | `number \| null` — see notes under [`POST /api/settlement/run`](#post-apisettlementrun) |
+
+### `SettlementRunResponse`
+*(`models/settlement.py`)*
+
+| Field | Type |
+|---|---|
+| `checked` | `number` — total pending bets examined this run |
+| `settled` | `number` — how many of those had actually concluded |
+| `results` | `SettlementResult[]` |
 
 ---
 
