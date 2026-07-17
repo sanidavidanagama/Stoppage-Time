@@ -16,7 +16,8 @@ router = APIRouter(prefix="/api/fixture", tags=["fixture"])
 
 
 @router.post("", response_model=FixtureCreateResponse)
-def create_fixture(payload: FixtureCreateRequest, background_tasks: BackgroundTasks):
+def create_fixture(payload: FixtureCreateRequest, background_tasks: BackgroundTasks,
+                    admin: str = Depends(get_current_admin)):
     prefix = "unified" if payload.agent == "unified" else "live"
     session_id = f"{prefix}-{uuid.uuid4().hex[:8]}"
 

@@ -12,8 +12,9 @@ client can review the reasoning before calling POST /api/fixture/{id}/order.
 """
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from api.deps import get_current_admin
 from service.db import (
     get_sessions_by_status, get_session, get_bet_by_session_id,
     get_logs_for_session, delete_session_cascade,
@@ -50,7 +51,7 @@ def list_awaiting_orders():
 
 
 @router.delete("/awaiting/{session_id}", response_model=DeleteAwaitingOrderResponse)
-def delete_awaiting_order(session_id: str):
+def delete_awaiting_order(session_id: str, admin: str = Depends(get_current_admin)):
     """Delete an awaiting_order session and everything temporary that was
     created for it — its agent_logs rows, its agent_bets row, and finally
     the session row itself, strictly in that order (see

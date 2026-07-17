@@ -7,8 +7,9 @@ records the actual outcome + P&L on the matching agent_bets row. No money
 moves here — this only records facts that already happened on-chain.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from api.deps import get_current_admin
 from service.settlement import settle_all_pending
 from models.settlement import SettlementResult, SettlementRunResponse
 
@@ -16,7 +17,7 @@ router = APIRouter(prefix="/api/settlement", tags=["settlement"])
 
 
 @router.post("/run", response_model=SettlementRunResponse)
-def run_settlement():
+def run_settlement(admin: str = Depends(get_current_admin)):
     results = settle_all_pending()
     settled = [r for r in results if r.get("status") == "settled"]
     return SettlementRunResponse(
