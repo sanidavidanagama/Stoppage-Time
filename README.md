@@ -1,16 +1,18 @@
 ![Stoppage Time Banner](<docs/Stoppage Time Banner.png>)
 
-# Stoppage Time — FIFA World Cup '26 Polymarket Betting Agent
+# Stoppage Time - FIFA World Cup '26 Polymarket Betting Agent
 
-![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
-![uv](https://img.shields.io/badge/uv-0DB9FF?style=for-the-badge)
-![FastAPI](https://img.shields.io/badge/fastapi-009688?style=for-the-badge&logo=fastapi&logoColor=white)
-![pytest](https://img.shields.io/badge/pytest-151515?style=for-the-badge&logo=pytest)
-![Supabase](https://img.shields.io/badge/supabase-3ECF8E?style=for-the-badge&logo=supabase)
-![Stair AI](https://img.shields.io/badge/stair--ai-FF6B6B?style=for-the-badge)
-![Polymarket](https://img.shields.io/badge/polymarket-1F8ACB?style=for-the-badge)
-![Anthropic](https://img.shields.io/badge/anthropic-6C4EFF?style=for-the-badge)
-![Gemini](https://img.shields.io/badge/gemini-4285F4?style=for-the-badge&logo=google)
+![Python](https://img.shields.io/badge/Python-000000?style=for-the-badge&logo=python&logoColor=e7b24a)
+![FastAPI](https://img.shields.io/badge/FastAPI-000000?style=for-the-badge&logo=fastapi&logoColor=e7b24a)
+![uv](https://img.shields.io/badge/uv-000000?style=for-the-badge&logo=uv&logoColor=e7b24a)
+![LangChain](https://img.shields.io/badge/LangChain-000000?style=for-the-badge&logo=langchain&logoColor=e7b24a)
+![Anthropic](https://img.shields.io/badge/Anthropic-000000?style=for-the-badge&logo=anthropic&logoColor=e7b24a)
+![Gemini](https://img.shields.io/badge/Gemini-000000?style=for-the-badge&logo=googlegemini&logoColor=e7b24a)
+![Supabase](https://img.shields.io/badge/Supabase-000000?style=for-the-badge&logo=supabase&logoColor=e7b24a)
+![Stair AI](https://img.shields.io/badge/Stair_AI-000000?style=for-the-badge)
+![Polymarket](https://img.shields.io/badge/Polymarket-000000?style=for-the-badge)
+
+*FIFA World Cup 2026 · Match Outcome Predictor · Polymarket Betting Agent*
 
 Stoppage Time is a reasoning agent that reads a World Cup 2026 fixture, forms
 its own probability estimate of the outcome, compares that estimate against
