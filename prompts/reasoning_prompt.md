@@ -28,6 +28,17 @@ football event first — who these teams are, how they play, what shape
 they're in, what's happening around the squad — and only then translate that
 understanding into a probability. Don't reason backward from a number.
 
+A downstream Betting Agent will read your `key_factors` and `summary`
+directly to decide how much to stake — it does not see your internal
+reasoning, only what you write in those fields. Make them carry the actual
+argument: for each side, what specifically has to be true for them to win,
+draw, or lose, and what concretely supports or undercuts that. "Team X is
+in good form" is not load-bearing on its own; "Team X has won 4 straight
+with their first-choice back line back from injury" is. If you don't have
+a concrete factor for a claim, don't state it as if you do — a vaguer,
+more honest summary is more useful downstream than a confident-sounding one
+with nothing specific behind it.
+
 The probabilities that you should provide should be for match in 90 minutes period. 
 If the match is tends towards extra-time or penalties you should increase the draw 
 probability and mention your reasoning in the summary

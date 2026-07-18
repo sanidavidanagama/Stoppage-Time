@@ -68,7 +68,7 @@ class Settings(BaseSettings):
     # --- Agent behaviour ---
     DEBUG:           bool  = False
     MAX_TOOL_ROUNDS: int   = 4
-    MAX_BET_SIZE:    float = 15.0
+    MAX_BET_SIZE:    float = 50.0
     MIN_EDGE_PP:     float = 5.0
 
     # --- Backend auth ---
@@ -84,8 +84,7 @@ class Settings(BaseSettings):
     MAX_NEWS_CALLS:    int = 3
     MAX_H2H_CALLS:     int = 3
     
-    MIN_STAKE_USD:  float = 5.0
-    MAX_STAKE_PCT:  float = 0.15
+    MIN_STAKE_USD:  float = 15.0
 
     # --- Stats ---
     STARTING_BALANCE_USD: float = 100.0

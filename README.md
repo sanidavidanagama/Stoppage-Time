@@ -123,9 +123,10 @@ sequence:
    probability minus market price) and only proceeds if that edge clears
    `MIN_EDGE_PP`. If it doesn't, the bet is recorded as skipped and nothing
    further happens — no model is invoked at all. If it does, an LLM call
-   decides the actual stake size (and can still choose to skip despite the
-   edge, if its own track record gives it reason to), bounded by
-   `MIN_STAKE_USD`/`MAX_STAKE_PCT`.
+   always bets on that outcome (no skip past this point) and decides only
+   the stake size, between `MIN_STAKE_USD` and `MAX_BET_SIZE`, weighing the
+   Reasoning Agent's actual match analysis (key factors/summary) against
+   the raw edge rather than sizing off the edge number alone.
 
 ### Shared building blocks
 
@@ -297,9 +298,8 @@ behavior:
 | `MAX_TOOL_ROUNDS` | `4` | Cap on ReAct rounds in the Reasoning Agent |
 | `MAX_TACTICS_CALLS` / `MAX_NEWS_CALLS` / `MAX_H2H_CALLS` | `2` / `3` / `3` | Per-run budgets on each bindable tool |
 | `MIN_EDGE_PP` | `5.0` | Minimum edge (percentage points) before the Betting Agent's LLM call even runs |
-| `MIN_STAKE_USD` | `5.0` | Floor on any confirmed stake |
-| `MAX_STAKE_PCT` | `0.15` | Ceiling on stake as a fraction of available balance |
-| `MAX_BET_SIZE` | `15.0` | Hard cap on stake size |
+| `MIN_STAKE_USD` | `15.0` | Floor on any stake (no skip once a real edge exists) |
+| `MAX_BET_SIZE` | `50.0` | Ceiling on any stake |
 | `STARTING_BALANCE_USD` | `100.0` | Reference starting balance for ROI stats (`GET /api/agent/stats`) — not tracked historically, just a fixed baseline |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | `admin` / `changeme` | The single admin account for API auth — **change these before deploying** |
 | `JWT_SECRET_KEY` | placeholder | Signs API auth tokens — **set a real secret in `.env`** |

@@ -4,8 +4,10 @@ agents/betting_agent.py
 
 The Betting Agent. Edge is calculated deterministically first —
 the LLM is only called when a real edge (>= MIN_EDGE_PP) exists
-on at least one outcome. When called, it decides stake size and whether
-to actually act, informed by its own track record — not a formula.
+on at least one outcome. When called, it always bets on the edge
+outcome (no skip); it only decides stake size, between MIN_STAKE_USD
+and MAX_BET_SIZE, based on whether the actual match analysis supports
+the edge — not a formula.
 """
 
 import json
@@ -175,6 +177,11 @@ def run_betting_agent(
     )
 
     balance = get_available_balance()
+
+    if balance < settings.MIN_STAKE_USD:
+        update_bet(bet_id, {"decision": "skip", "bet_reason": "balance_below_min_stake"})
+        return {"decision": "skip", "reason": "balance_below_min_stake", "bet_id": bet_id}
+
     recent = get_recent_bets(limit=10)
 
     prompt = _fill_template(
@@ -185,6 +192,9 @@ def run_betting_agent(
         draw_prob=round(prediction["draw_probability"] * 100, 1),
         away_prob=round(prediction["away_win_probability"] * 100, 1),
         confidence=prediction.get("confidence", "unknown"),
+        confidence_reason=prediction.get("confidence_reason", "Not provided."),
+        key_factors="\n".join(f"- {f}" for f in prediction.get("key_factors", [])) or "None provided.",
+        summary=prediction.get("summary", "Not provided."),
         market_home=round(market["home"]["price"] * 100, 1),
         market_draw=round(market["draw"]["price"] * 100, 1),
         market_away=round(market["away"]["price"] * 100, 1),
@@ -215,24 +225,20 @@ def run_betting_agent(
         update_bet(bet_id, {"decision": "skip", "bet_reason": "llm_unparseable_response"})
         return {"decision": "skip", "reason": "llm_unparseable_response", "raw": final_text, "bet_id": bet_id}
 
-    decision = result.get("decision", "skip")
-    stake = float(result.get("stake_usd", 0) or 0)
-
-    stake = min(stake, settings.MAX_STAKE_PCT * balance)
-    stake = min(stake, 5.0)
-    if decision == "confirm" and stake < settings.MIN_STAKE_USD:
-        stake = 0
-        decision = "skip"
+    # Policy: no skip once a real edge exists — the only lever is stake size.
+    stake = float(result.get("stake_usd", settings.MIN_STAKE_USD) or settings.MIN_STAKE_USD)
+    stake = max(stake, settings.MIN_STAKE_USD)
+    stake = min(stake, settings.MAX_BET_SIZE, balance)
 
     update_bet(bet_id, {
-        "decision": edge["outcome"] if decision == "confirm" else "skip",
-        "stake_usd": stake if decision == "confirm" else None,
+        "decision": edge["outcome"],
+        "stake_usd": stake,
         "bet_reason": result.get("reasoning", ""),
     })
 
     return {
-        "decision": edge["outcome"] if decision == "confirm" else "skip",
-        "stake_usd": stake if decision == "confirm" else None,
+        "decision": edge["outcome"],
+        "stake_usd": stake,
         "edge_pp": round(edge["edge_pp"], 1),
         "reasoning": result.get("reasoning"),
         "bet_id": bet_id,
